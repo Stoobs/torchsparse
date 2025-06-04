@@ -266,7 +266,7 @@ jobs:
       shell: pwsh
       run: |
         $cuda_version = "${{ matrix.cuda-version }}"
-        Get-ChildItem -Path "C:\Program Files\NVIDIA GPU Computing Toolkit\" -Filter "cusparse.h" -Recurse
+        Get-ChildItem -Path "C:\Program Files\NVIDIA GPU Computing Toolkit\" -Filter "cusparse.h" -Recurse | Out-File -FilePath $Env:GITHUB_OUTPUT -Encoding utf8 -Append
         
     - name: Set build environment (Windows)
       if: runner.os == 'Windows'

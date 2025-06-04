@@ -37,33 +37,38 @@ extension_type = CUDAExtension if device == "cuda" else CppExtension
 # Define macros and include directories
 define_macros = []
 include_dirs = [
-    os.path.abspath("torchsparse/backend"),
-    # Add path to vendored sparsehash headers
+    os.path.abspath("torchsparse/backend"), # If headers are included relative to this
     os.path.abspath("third_party/sparsehash/src"),
 ]
 
 # Platform-specific compiler arguments
 if platform.system() == "Windows":
-    define_macros += [('SPARSEHASH_WINDOWS', None)] # For sparsehash
-    # For MSVC C++ compiler
+    define_macros += [('SPARSEHASH_WINDOWS', None)]
     extra_compile_args = {
         "cxx": [
-            "/MD",       # Use the multithreaded, DLL-specific version of the run-time library
-            "/O2",       # Optimization for speed
-            "/EHsc",     # Enable C++ EH (no SEH exceptions)
-            "/std:c++17",# Explicitly set C++17 standard
-            "/Zc:__cplusplus", # Ensure __cplusplus macro is correct
-            # "/MP",     # Optional: build with multiple processes
+            "/MD",
+            "/O2",
+            "/EHsc",
+            "/std:c++17",
+            "/Zc:__cplusplus",
         ],
-        "nvcc": ["-O3", "--use-local-env", "-std=c++17", "-Xcompiler", "/MD"], # Added --use-local-env and /MD for nvcc
+        "nvcc": [
+            "-O3",
+            "--use-local-env", # Use host compiler environment
+            "-std=c++17",
+            "-Xcompiler", "/MD", # Pass /MD to host compiler
+            "-wd177"  # <--- ADD THIS LINE TO SUPPRESS WARNING 177
+        ],
     }
 else: # Linux/macOS
     extra_compile_args = {
-        "cxx": ["-g", "-O3", "-fopenmp", "-std=c++17"], # Added -std=c++17 for consistency
-        "nvcc": ["-O3", "-std=c++17"],
+        "cxx": ["-g", "-O3", "-fopenmp", "-std=c++17"],
+        "nvcc": [
+            "-O3",
+            "-std=c++17",
+            "-wd177"  # <--- ADD THIS LINE TO SUPPRESS WARNING 177
+        ],
     }
-    # On Linux, -lgomp is usually handled by PyTorch's build system or not needed if OpenMP is part of the toolchain.
-    # If you face linker errors for OpenMP, you might need to add extra_link_args=['-lgomp']
 
 setup(
     name="torchsparse",
@@ -73,26 +78,22 @@ setup(
         extension_type(
             "torchsparse.backend",
             sources,
-            include_dirs=include_dirs, # Add include_dirs here
-            define_macros=define_macros, # Add define_macros here
+            include_dirs=include_dirs,
+            define_macros=define_macros,
             extra_compile_args=extra_compile_args,
         )
     ],
-    url="https://github.com/mit-han-lab/torchsparse", # Consider changing to your fork Stoobs/torchsparse
+    url="https://github.com/Stoobs/torchsparse", # Updated to your fork
     install_requires=[
         "numpy",
-        "backports.cached_property", # For Python < 3.8
+        "backports.cached_property",
         "tqdm",
         "typing-extensions",
         "wheel",
         "rootpath",
-        "torch", # PyTorch will be installed by your GHA workflow
-        "torchvision", # Torchvision will be installed by your GHA workflow
+        "torch",
+        "torchvision"
     ],
-    # dependency_links is deprecated, PyTorch should be installed via pip from the specified index in GHA.
-    # dependency_links=[
-    #     'https://download.pytorch.org/whl/cu126'
-    # ],
     cmdclass={"build_ext": BuildExtension},
     zip_safe=False,
 )

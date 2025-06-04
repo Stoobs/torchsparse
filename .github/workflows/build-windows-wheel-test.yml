@@ -266,11 +266,12 @@ jobs:
       shell: pwsh
       run: |
         $cuda_version = "${{ matrix.cuda-version }}"
-        $cusparse = Get-ChildItem -Path "C:\Program Files\NVIDIA GPU Computing Toolkit\" -Filter "cusparse.h" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-        if ($cusparse) {
-          echo "cusparse_include_dir=$($cusparse.DirectoryName)" >> $env:GITHUB_OUTPUT
+        $cuda_include_path = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$cuda_version\include"
+        if (Test-Path $cuda_include_path) {
+          echo "INCLUDE=$env:INCLUDE;$cuda_include_path" >> $env:GITHUB_ENV
         } else {
-          echo "cusparse_include_dir=" >> $env:GITHUB_OUTPUT
+          Write-Error "CUDA include path not found: $cuda_include_path"
+          exit 1
         }
         
     - name: Set build environment (Windows)

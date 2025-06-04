@@ -181,6 +181,7 @@ jobs:
             "2.1.0" { "0.16.0" }
             "2.4.0" { "0.19.0" }
             "2.5.0" { "0.20.0" }
+            "2.6.0" { "0.21.0" }
             default {
               Write-Host "Warning: Unknown torchvision version for PyTorch $pytorch_version, installing without version constraint"
               $null
@@ -244,6 +245,9 @@ jobs:
             "2.5.0")
               torchvision_version="0.20.0"
               ;;
+            "2.6.0")
+              torchvision_version="0.21.0"
+              ;;
             *)
               echo "Warning: Unknown torchvision version for PyTorch $pytorch_version, installing without version constraint"
               torchvision_version=""
@@ -266,7 +270,7 @@ jobs:
         echo "DISTUTILS_USE_SDK=1" >> $env:GITHUB_ENV
         echo "MSSdk=1" >> $env:GITHUB_ENV
         echo "FORCE_CUDA=1" >> $env:GITHUB_ENV
-        echo "TORCH_CUDA_ARCH_LIST=7.5;8.0;8.6;8.9" >> $env:GITHUB_ENV
+        echo "TORCH_CUDA_ARCH_LIST=7.5;8.0;8.6;8.9;12.0" >> $env:GITHUB_ENV
 
     - name: Set build environment (Linux)
       if: runner.os == 'Linux'
@@ -275,7 +279,7 @@ jobs:
         echo "CXXFLAGS=-O2 -fopenmp" >> $GITHUB_ENV
         echo "CFLAGS=-O2" >> $GITHUB_ENV
         echo "FORCE_CUDA=1" >> $GITHUB_ENV
-        echo "TORCH_CUDA_ARCH_LIST=7.5;8.0;8.6;8.9" >> $GITHUB_ENV
+        echo "TORCH_CUDA_ARCH_LIST=7.5;8.0;8.6;8.9;12.0" >> $GITHUB_ENV
         echo "MAX_JOBS=4" >> $GITHUB_ENV
 
     - name: Build wheel

@@ -311,6 +311,54 @@ jobs:
           exit 1
         }
         
+    # Set up CUDA environment (Windows)
+    - name: Set up CUDA environment (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $cuda_version = "${{ matrix.cuda-version }}"
+        $cuda_root = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$cuda_version"
+        $cuda_include = Join-Path $cuda_root "include"
+        
+        # Verify CUDA paths exist
+        if (-not (Test-Path $cuda_root)) {
+            Write-Error "CUDA root path not found: $cuda_root"
+            exit 1
+        }
+        if (-not (Test-Path $cuda_include)) {
+            Write-Error "CUDA include path not found: $cuda_include"
+            exit 1
+        }
+
+        # Set up environment variables
+        $env:CUDA_PATH = $cuda_root
+        $env:CUDA_HOME = $cuda_root
+        $env:CUDA_TOOLKIT_ROOT_DIR = $cuda_root
+        
+        # Add CUDA paths to system path
+        $env:PATH = "$cuda_root\bin;$env:PATH"
+        
+        # Set include paths
+        $include_paths = @(
+            $cuda_include,
+            "$cuda_root\bin",
+            "C:\sparsehash\src"
+        ) -join ";"
+        
+        # Set environment variables for subsequent steps
+        echo "INCLUDE=$env:INCLUDE;$include_paths" >> $env:GITHUB_ENV
+        echo "CUDA_PATH=$cuda_root" >> $env:GITHUB_ENV
+        echo "CUDA_HOME=$cuda_root" >> $env:GITHUB_ENV
+        echo "CUDA_TOOLKIT_ROOT_DIR=$cuda_root" >> $env:GITHUB_ENV
+        
+        # Verify CUDA setup
+        Write-Host "CUDA Environment Setup:"
+        Write-Host "CUDA_PATH: $env:CUDA_PATH"
+        Write-Host "INCLUDE paths: $include_paths"
+        Get-ChildItem $cuda_include | Select-Object Name
+        nvcc --version
+
+    # Set build environment (Windows)
     - name: Set build environment (Windows)
       if: runner.os == 'Windows'
       shell: pwsh
@@ -334,10 +382,26 @@ jobs:
         echo "MAX_JOBS=4" >> $GITHUB_ENV
 
     - name: Build wheel
+      shell: pwsh
       run: |
+        # Print environment for debugging
+        Write-Host "Build Environment:"
+        Write-Host "INCLUDE: $env:INCLUDE"
+        Write-Host "CUDA_PATH: $env:CUDA_PATH"
+        Write-Host "CUDA_HOME: $env:CUDA_HOME"
+        
         python setup.py bdist_wheel
       env:
         INCLUDE: ${{ env.INCLUDE }}
+        CUDA_PATH: ${{ env.CUDA_PATH }}
+        CUDA_HOME: ${{ env.CUDA_HOME }}
+        CUDA_TOOLKIT_ROOT_DIR: ${{ env.CUDA_TOOLKIT_ROOT_DIR }}
+        CL: ${{ env.CL }}
+        DISTUTILS_USE_SDK: ${{ env.DISTUTILS_USE_SDK }}
+        MSSdk: ${{ env.MSSdk }}
+        FORCE_CUDA: ${{ env.FORCE_CUDA }}
+        TORCH_CUDA_ARCH_LIST: ${{ env.TORCH_CUDA_ARCH_LIST }}
+        MAX_JOBS: ${{ env.MAX_JOBS }}
 
     - name: Test wheel installation (Windows)
       if: runner.os == 'Windows'

@@ -176,8 +176,8 @@ jobs:
         foreach ($path in $paths) {
             if (Test-Path $path) {
                 Write-Host "✅ Found: $path"
-                Write-Host "Contents of $path:"
-                Get-Content $path
+                Write-Host "Contents of ${path}:"
+                Get-Content -Path $path
             } else {
                 Write-Error "❌ Missing: $path"
                 exit 1
@@ -186,8 +186,7 @@ jobs:
 
         # List all header files for verification
         Write-Host "Sparsehash directory structure:"
-        Get-ChildItem "C:\sparsehash\src" -Recurse -Filter *.h | Select-Object FullName
-
+        Get-ChildItem "C:\sparsehash\src" -Recurse -Filter *.h | ForEach-Object { $_.FullName }
     # Set sparsehash environment variable regardless of cache hit
     - name: Set sparsehash environment (Windows)
       if: runner.os == 'Windows'

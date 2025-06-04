@@ -57,7 +57,7 @@ if platform.system() == "Windows":
             "--use-local-env",
             "-std=c++17",
             "-Xcompiler", "/MD",
-            "-Xcudafe", "--diag_suppress=177"  # <--- CORRECTED LINE
+            "-Xcudafe", "--disable-warnings"  # <--- CORRECTED LINE
         ],
     }
 else: # Linux/macOS
@@ -66,7 +66,7 @@ else: # Linux/macOS
         "nvcc": [
             "-O3",
             "-std=c++17",
-            "-Xcudafe", "--diag_suppress=177"  # <--- CORRECTED LINE
+            "-Xcudafe", "--disable-warnings"  # <--- CORRECTED LINE
         ],
     }
 

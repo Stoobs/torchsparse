@@ -127,12 +127,20 @@ jobs:
 
     - name: Install CUDA Toolkit ${{ matrix.cuda-version }}
       if: runner.os == 'Windows' && steps.cache-cuda-toolkit.outputs.cache-hit != 'true'
-      # Consider using nvidia-github-actions/setup-cuda@v1 for official support
-      uses: Jimver/cuda-toolkit@v0.2.23
-      with:
-        cuda: ${{ matrix.cuda-version }}.0
-        method: 'network'
-        sub-packages: '["nvcc", "visual_studio_integration", "cudart", "cublas", "cublas_dev", "cusparse", "cusparse_dev", "cusolver", "cusolver_dev", "cupti", "cufft", "cufft_dev", "curand", "curand_dev", "nvrtc_dev", "nvrtc"]'
+      id: cuda-toolkit
+      shell: pwsh
+      run: scripts/setup_cuda.ps1
+      env:
+        INPUT_CUDA_VERSION: ${{ matrix.cuda-version }}.0
+
+    # - name: Install CUDA Toolkit ${{ matrix.cuda-version }}
+    #   if: runner.os == 'Windows' && steps.cache-cuda-toolkit.outputs.cache-hit != 'true'
+    #   uses: Jimver/cuda-toolkit@v0.2.23
+    #   with:
+    #     cuda: ${{ matrix.cuda-version }}.0
+    #     use-github-cache: false
+    #     method: 'network'
+    #     sub-packages: '["nvcc", "visual_studio_integration", "cudart", "cublas", "cublas_dev", "cusparse", "cusparse_dev", "cusolver", "cusolver_dev", "cupti", "cufft", "cufft_dev", "curand", "curand_dev", "nvrtc_dev", "nvrtc"]'
 
     - name: Setup Visual Studio environment (Windows)
       if: runner.os == 'Windows'

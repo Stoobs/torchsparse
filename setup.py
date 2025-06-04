@@ -37,7 +37,7 @@ extension_type = CUDAExtension if device == "cuda" else CppExtension
 # Define macros and include directories
 define_macros = []
 include_dirs = [
-    os.path.abspath("torchsparse/backend"), # If headers are included relative to this
+    os.path.abspath("torchsparse/backend"),
     os.path.abspath("third_party/sparsehash/src"),
 ]
 
@@ -54,10 +54,10 @@ if platform.system() == "Windows":
         ],
         "nvcc": [
             "-O3",
-            "--use-local-env", # Use host compiler environment
+            "--use-local-env",
             "-std=c++17",
-            "-Xcompiler", "/MD", # Pass /MD to host compiler
-            "-wd177"  # <--- ADD THIS LINE TO SUPPRESS WARNING 177
+            "-Xcompiler", "/MD",
+            "-Xcudafe", "--diag_suppress=177"  # <--- CORRECTED LINE
         ],
     }
 else: # Linux/macOS
@@ -66,7 +66,7 @@ else: # Linux/macOS
         "nvcc": [
             "-O3",
             "-std=c++17",
-            "-wd177"  # <--- ADD THIS LINE TO SUPPRESS WARNING 177
+            "-Xcudafe", "--diag_suppress=177"  # <--- CORRECTED LINE
         ],
     }
 
@@ -83,7 +83,7 @@ setup(
             extra_compile_args=extra_compile_args,
         )
     ],
-    url="https://github.com/Stoobs/torchsparse", # Updated to your fork
+    url="https://github.com/Stoobs/torchsparse",
     install_requires=[
         "numpy",
         "backports.cached_property",

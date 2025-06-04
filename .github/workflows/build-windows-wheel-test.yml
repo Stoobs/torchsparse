@@ -115,8 +115,18 @@ jobs:
           requirements.txt
           setup.py
 
-    - name: Install CUDA Toolkit ${{ matrix.cuda-version }}
+    - name: Cache CUDA Toolkit (using NVIDIA action path)
       if: runner.os == 'Windows'
+      id: cache-cuda-toolkit
+      uses: actions/cache@v4
+      with:
+        # The exact path might vary slightly based on the action, check its documentation
+        # or observe where it installs on the first run.
+        path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v${{ matrix.cuda-version }}
+        key: ${{ runner.os }}-nvidia-cuda-${{ matrix.cuda-version }}
+
+    - name: Install CUDA Toolkit ${{ matrix.cuda-version }}
+      if: runner.os == 'Windows' && steps.cache-cuda-toolkit.outputs.cache-hit != 'true'
       # Consider using nvidia-github-actions/setup-cuda@v1 for official support
       uses: Jimver/cuda-toolkit@v0.2.23
       with:

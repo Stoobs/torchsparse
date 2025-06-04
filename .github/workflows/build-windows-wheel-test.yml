@@ -140,44 +140,53 @@ jobs:
         #ifndef GOOGLE_SPARSEHASH_SPARSECONFIG_H_
         #define GOOGLE_SPARSEHASH_SPARSECONFIG_H_
 
-        // Configure for MSVC
-        #if defined(_MSC_VER)
+        // Required includes for basic types
+        #include <stdint.h>
+        #include <inttypes.h>
+        #include <stddef.h>
+
+        // Configure hash_map/hash_set for MSVC
         #define GOOGLE_SPARSEHASH_HAS_HASH_MAP 0
         #define GOOGLE_SPARSEHASH_HAS_HASH_SET 0
         #define GOOGLE_SPARSEHASH_HAS_EXT_HASH_MAP 0
         #define GOOGLE_SPARSEHASH_HAS_EXT_HASH_SET 0
 
+        // Define namespace macros
         #define SPARSEHASH_NAMESPACE_START() namespace google {
         #define SPARSEHASH_NAMESPACE_END() }
-
-        // Required includes for basic types
-        #include <stdint.h>
-        #include <inttypes.h>
-        #include <stddef.h>
-        #endif
 
         #endif  // GOOGLE_SPARSEHASH_SPARSECONFIG_H_
         "@
 
-        # Create the internal directory if it doesn't exist
+        # Create necessary directories
         New-Item -Path "C:\sparsehash\src\sparsehash\internal" -ItemType Directory -Force
         
         # Write the sparseconfig.h file
         Set-Content -Path "C:\sparsehash\src\sparsehash\internal\sparseconfig.h" -Value $sparseconfig
         
-        # Verify the file was created and print contents for debugging
-        if (Test-Path "C:\sparsehash\src\sparsehash\internal\sparseconfig.h") {
-            Write-Host "✅ sparseconfig.h created successfully"
-            Write-Host "Contents of sparseconfig.h:"
-            Get-Content "C:\sparsehash\src\sparsehash\internal\sparseconfig.h"
-        } else {
-            Write-Error "❌ Failed to create sparseconfig.h"
-            exit 1
+        # Create a copy in the root include path as well (some builds look here)
+        Copy-Item "C:\sparsehash\src\sparsehash\internal\sparseconfig.h" -Destination "C:\sparsehash\src\sparsehash\sparseconfig.h" -Force
+        
+        # Verify files were created
+        $paths = @(
+            "C:\sparsehash\src\sparsehash\internal\sparseconfig.h",
+            "C:\sparsehash\src\sparsehash\sparseconfig.h"
+        )
+        
+        foreach ($path in $paths) {
+            if (Test-Path $path) {
+                Write-Host "✅ Found: $path"
+                Write-Host "Contents of $path:"
+                Get-Content $path
+            } else {
+                Write-Error "❌ Missing: $path"
+                exit 1
+            }
         }
 
-        # Additional verification
-        Write-Host "Directory structure:"
-        Get-ChildItem "C:\sparsehash\src\sparsehash" -Recurse | Select-Object FullName
+        # List all header files for verification
+        Write-Host "Sparsehash directory structure:"
+        Get-ChildItem "C:\sparsehash\src" -Recurse -Filter *.h | Select-Object FullName
 
     # Set sparsehash environment variable regardless of cache hit
     - name: Set sparsehash environment (Windows)

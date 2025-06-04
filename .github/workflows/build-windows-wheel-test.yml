@@ -98,6 +98,94 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y build-essential libsparsehash-dev
 
+    - name: Configure sparsehash for MSVC
+      if: runner.os == 'Windows'
+      run: |
+        # Create MSVC-compatible sparseconfig.h
+        $configContent = @"
+        #ifndef SPARSEHASH_SPARSECONFIG_H_
+        #define SPARSEHASH_SPARSECONFIG_H_
+
+        // Namespace configuration
+        #if defined(_MSC_VER)
+        #define GOOGLE_NAMESPACE  ::google
+        #define _START_GOOGLE_NAMESPACE_  namespace google {
+        #define _END_GOOGLE_NAMESPACE_    }
+        #endif
+
+        // MSVC-specific configuration
+        #define SPARSEHASH_WINDOWS
+
+        // System header configuration
+        #define HAVE_STDINT_H     1
+        #define HAVE_INTTYPES_H   0
+        #define HAVE_SYS_TYPES_H  0
+        #define HAVE_STDDEF_H     1
+        #define HAVE_STDLIB_H     1
+
+        // Type configuration
+        #define HAVE_U_INT16_T    0
+        #define HAVE_UINT16_T     1
+        typedef unsigned short uint16_t;
+
+        #define HAVE_U_INT32_T    0
+        #define HAVE_UINT32_T     1
+        typedef unsigned int uint32_t;
+
+        #define HAVE_U_INT64_T    0
+        #define HAVE_UINT64_T     1
+        typedef unsigned __int64 uint64_t;
+
+        #define HAVE_LONG_LONG    1
+        #define HAVE_SYS_TYPES_H  0
+
+        #endif  // SPARSEHASH_SPARSECONFIG_H_
+        "@
+
+        $sparsehashDir = "C:\sparsehash\src\sparsehash"
+        if (-not (Test-Path $sparsehashDir)) {
+          New-Item -Path $sparsehashDir -ItemType Directory -Force
+        }
+        $configContent | Out-File -FilePath "$sparsehashDir\internal\sparseconfig.h" -Encoding ASCII
+
+        # Download and extract sparsehash
+        Invoke-WebRequest -Uri "https://github.com/sparsehash/sparsehash/archive/refs/tags/sparsehash-2.0.4.zip" -OutFile "sparsehash.zip"
+        Expand-Archive -Path "sparsehash.zip" -DestinationPath "C:\"
+        Move-Item -Path "C:\sparsehash-sparsehash-2.0.4" -Destination "C:\sparsehash"
+        
+        # Configure include paths
+        $Env:INCLUDE += ";C:\sparsehash\src"
+        
+        # Create a custom CMake configuration for MSVC
+        $cmakeConfig = @"
+        cmake_minimum_required(VERSION 3.10)
+        project(sparsehash)
+        
+        # Set up installation
+        install(DIRECTORY src/sparsehash
+                DESTINATION include
+                FILES_MATCHING PATTERN "*.h")
+        "@
+        
+        Set-Content -Path "C:\sparsehash\CMakeLists.txt" -Value $cmakeConfig
+        
+        # Build and install
+        Push-Location C:\sparsehash
+        cmake -G "Visual Studio 17 2022" -A x64 .
+        cmake --build . --config Release
+        cmake --install . --prefix "C:\Program Files\sparsehash"
+        Pop-Location
+        
+        # Set environment variables for the build
+        $Env:INCLUDE += ";C:\Program Files\sparsehash\include"
+        [Environment]::SetEnvironmentVariable("SPARSEHASH_ROOT", "C:\Program Files\sparsehash", "Machine")
+
+    - name: Set MSVC compiler options
+      if: runner.os == 'Windows'
+      run: |
+        # Add MSVC-specific compiler flags
+        $Env:_CL_ = "/std:c++17 /EHsc /DWIN32 /D_WINDOWS /DNOMINMAX /DSPARSEHASH_WINDOWS"
+
     - name: Checkout repository
       uses: actions/checkout@v4
 

@@ -11,6 +11,7 @@ dist/
 # Build artifacts
 build_env_*/
 release/
+venv/
 
 # Platform-specific
 .DS_Store

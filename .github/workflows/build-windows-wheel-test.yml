@@ -92,121 +92,19 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-    - name: Install Linux dependencies
+    - name: Install Linux dependencies (for system sparsehash)
       if: runner.os == 'Linux'
       run: |
         sudo apt-get update
         sudo apt-get install -y build-essential libsparsehash-dev
 
-    - name: Configure sparsehash for MSVC
-      if: runner.os == 'Windows'
-      run: |        # Download and extract sparsehash first
-        Invoke-WebRequest -Uri "https://github.com/sparsehash/sparsehash/archive/refs/tags/sparsehash-2.0.4.zip" -OutFile "sparsehash.zip"
-        Expand-Archive -Path "sparsehash.zip" -DestinationPath "C:\"
-        Move-Item -Path "C:\sparsehash-sparsehash-2.0.4" -Destination "C:\sparsehash"
-        
-        # Create directory structure
-        New-Item -Path "C:\sparsehash\src\sparsehash\internal" -ItemType Directory -Force
-        
-        # Create MSVC-compatible sparseconfig.h
-        $configContent = @"
-        #ifndef SPARSEHASH_SPARSECONFIG_H_
-        #define SPARSEHASH_SPARSECONFIG_H_
-
-        // Namespace configuration
-        #if defined(_MSC_VER)
-        #define GOOGLE_NAMESPACE  ::google
-        #define _START_GOOGLE_NAMESPACE_  namespace google {
-        #define _END_GOOGLE_NAMESPACE_    }
-        #endif
-
-        // MSVC-specific configuration
-        #define SPARSEHASH_WINDOWS
-
-        // System header configuration
-        #define HAVE_STDINT_H     1
-        #define HAVE_INTTYPES_H   0
-        #define HAVE_SYS_TYPES_H  0
-        #define HAVE_STDDEF_H     1
-        #define HAVE_STDLIB_H     1
-
-        // Type configuration
-        #define HAVE_U_INT16_T    0
-        #define HAVE_UINT16_T     1
-        typedef unsigned short uint16_t;
-
-        #define HAVE_U_INT32_T    0
-        #define HAVE_UINT32_T     1
-        typedef unsigned int uint32_t;
-
-        #define HAVE_U_INT64_T    0
-        #define HAVE_UINT64_T     1
-        typedef unsigned __int64 uint64_t;
-
-        #define HAVE_LONG_LONG    1
-        #define HAVE_SYS_TYPES_H  0
-
-        #endif  // SPARSEHASH_SPARSECONFIG_H_
-        "@        # Write the sparseconfig.h file to both locations
-        $configContent | Out-File -FilePath "C:\sparsehash\src\sparsehash\internal\sparseconfig.h" -Encoding ASCII -Force
-        $configContent | Out-File -FilePath "C:\sparsehash\src\sparsehash\sparseconfig.h" -Encoding ASCII -Force
-        
-        # Verify the files were created
-        Write-Host "Verifying sparseconfig.h files..."
-        @(
-            "C:\sparsehash\src\sparsehash\internal\sparseconfig.h",
-            "C:\sparsehash\src\sparsehash\sparseconfig.h"
-        ) | ForEach-Object {
-            if (Test-Path $_) {
-                Write-Host "✅ Created: $_"
-                Write-Host "File contents:"
-                Get-Content $_
-            } else {
-                Write-Error "❌ Failed to create: $_"
-                exit 1
-            }
-        }
-
-        # Download and extract sparsehash
-        Invoke-WebRequest -Uri "https://github.com/sparsehash/sparsehash/archive/refs/tags/sparsehash-2.0.4.zip" -OutFile "sparsehash.zip"
-        Expand-Archive -Path "sparsehash.zip" -DestinationPath "C:\"
-        Move-Item -Path "C:\sparsehash-sparsehash-2.0.4" -Destination "C:\sparsehash"
-        
-        # Configure include paths
-        $Env:INCLUDE += ";C:\sparsehash\src"
-        
-        # Create a custom CMake configuration for MSVC
-        $cmakeConfig = @"
-        cmake_minimum_required(VERSION 3.10)
-        project(sparsehash)
-        
-        # Set up installation
-        install(DIRECTORY src/sparsehash
-                DESTINATION include
-                FILES_MATCHING PATTERN "*.h")
-        "@
-        
-        Set-Content -Path "C:\sparsehash\CMakeLists.txt" -Value $cmakeConfig
-        
-        # Build and install
-        Push-Location C:\sparsehash
-        cmake -G "Visual Studio 17 2022" -A x64 .
-        cmake --build . --config Release
-        cmake --install . --prefix "C:\Program Files\sparsehash"
-        Pop-Location
-        
-        # Set environment variables for the build
-        $Env:INCLUDE += ";C:\Program Files\sparsehash\include"
-        [Environment]::SetEnvironmentVariable("SPARSEHASH_ROOT", "C:\Program Files\sparsehash", "Machine")
-
-    - name: Set MSVC compiler options
-      if: runner.os == 'Windows'
-      run: |
-        # Add MSVC-specific compiler flags
-        $Env:_CL_ = "/std:c++17 /EHsc /DWIN32 /D_WINDOWS /DNOMINMAX /DSPARSEHASH_WINDOWS"
+    # REMOVED: "Configure sparsehash for MSVC" step
+    # REMOVED: "Set MSVC compiler options" step (flags now in setup.py)
 
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        submodules: recursive # Good practice
 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
@@ -219,11 +117,11 @@ jobs:
 
     - name: Install CUDA Toolkit ${{ matrix.cuda-version }}
       if: runner.os == 'Windows'
+      # Consider using nvidia-github-actions/setup-cuda@v1 for official support
       uses: Jimver/cuda-toolkit@v0.2.23
       with:
         cuda: ${{ matrix.cuda-version }}.0
         method: 'network'
-        # Include all necessary CUDA components including cuSolver
         sub-packages: '["nvcc", "visual_studio_integration", "cudart", "cublas", "cublas_dev", "cusparse", "cusparse_dev", "cusolver", "cusolver_dev", "cupti", "cufft", "cufft_dev", "curand", "curand_dev", "nvrtc_dev", "nvrtc"]'
 
     - name: Setup Visual Studio environment (Windows)
@@ -232,533 +130,226 @@ jobs:
       with:
         arch: amd64
 
-        
-    - name: Install sparsehash (Windows)
-      if: runner.os == 'Windows'
-      shell: pwsh
-      run: |
-        # Download and extract sparsehash
-        Invoke-WebRequest -Uri "https://github.com/sparsehash/sparsehash/archive/refs/tags/sparsehash-2.0.4.zip" -OutFile "sparsehash.zip"
-        Expand-Archive -Path "sparsehash.zip" -DestinationPath "C:\"
-        Rename-Item "C:\sparsehash-sparsehash-2.0.4" "C:\sparsehash"
-        
-        # Create sparseconfig.h for Windows
-        $sparseconfig = @"
-        #ifndef GOOGLE_SPARSEHASH_SPARSECONFIG_H_
-        #define GOOGLE_SPARSEHASH_SPARSECONFIG_H_
+    # REMOVED: "Install sparsehash (Windows)" step
+    # REMOVED: "Set sparsehash environment (Windows)" step
 
-        // Required includes for basic types
-        #include <stdint.h>
-        #include <inttypes.h>
-        #include <stddef.h>
-
-        // Configure hash_map/hash_set for MSVC
-        #define GOOGLE_SPARSEHASH_HAS_HASH_MAP 0
-        #define GOOGLE_SPARSEHASH_HAS_HASH_SET 0
-        #define GOOGLE_SPARSEHASH_HAS_EXT_HASH_MAP 0
-        #define GOOGLE_SPARSEHASH_HAS_EXT_HASH_SET 0
-
-        // Define namespace macros
-        #define SPARSEHASH_NAMESPACE_START() namespace google {
-        #define SPARSEHASH_NAMESPACE_END() }
-
-        #endif  // GOOGLE_SPARSEHASH_SPARSECONFIG_H_
-        "@
-
-        # Create necessary directories
-        New-Item -Path "C:\sparsehash\src\sparsehash\internal" -ItemType Directory -Force
-        
-        # Write the sparseconfig.h file
-        Set-Content -Path "C:\sparsehash\src\sparsehash\internal\sparseconfig.h" -Value $sparseconfig
-        
-        # Create a copy in the root include path as well (some builds look here)
-        Copy-Item "C:\sparsehash\src\sparsehash\internal\sparseconfig.h" -Destination "C:\sparsehash\src\sparsehash\sparseconfig.h" -Force
-        
-        # Verify files were created
-        $paths = @(
-            "C:\sparsehash\src\sparsehash\internal\sparseconfig.h",
-            "C:\sparsehash\src\sparsehash\sparseconfig.h"
-        )
-        
-        foreach ($path in $paths) {
-            if (Test-Path $path) {
-                Write-Host "✅ Found: $path"
-                Write-Host "Contents of ${path}:"
-                Get-Content -Path $path
-            } else {
-                Write-Error "❌ Missing: $path"
-                exit 1
-            }
-        }
-
-        # List all header files for verification
-        Write-Host "Sparsehash directory structure:"
-        Get-ChildItem "C:\sparsehash\src" -Recurse -Filter *.h | ForEach-Object { $_.FullName }
-    # Set sparsehash environment variable regardless of cache hit
-    - name: Set sparsehash environment (Windows)
-      if: runner.os == 'Windows'
-      shell: pwsh
-      run: |
-        echo "INCLUDE=$env:INCLUDE;C:\sparsehash\src" >> $env:GITHUB_ENV
-
-    - name: Install Linux dependencies
-      if: runner.os == 'Linux'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential libsparsehash-dev
-
-    - name: Install Python dependencies
+    - name: Install Python dependencies (build tools)
       run: |
         python -m pip install --upgrade pip
-        pip install wheel setuptools ninja
-
+        pip install wheel setuptools ninja # Ninja for faster C++ extension builds
 
     - name: Install PyTorch (Windows)
       if: runner.os == 'Windows'
       shell: pwsh
       run: |
-        $cuda_version = "${{ matrix.cuda-version }}"
-        $pytorch_version = "${{ github.event.inputs.pytorch_version || 'latest' }}"
-
-        # Determine CUDA short version for wheel index
-        $cuda_short = switch ($cuda_version) {
+        $cuda_version_input = "${{ matrix.cuda-version }}"
+        $pytorch_version_input = "${{ github.event.inputs.pytorch_version || 'latest' }}"
+        $cuda_short_tag = switch ($cuda_version_input) {
           "11.8" { "cu118" }
           "12.1" { "cu121" }
           "12.4" { "cu124" }
           "12.6" { "cu126" }
-          "12.8" { "cu128" }
-          default {
-            Write-Error "Unsupported CUDA version: $cuda_version"
-            exit 1
-          }
+          default { Write-Error "Unsupported CUDA version for PyTorch wheels: $cuda_version_input"; exit 1 }
         }
-        
-        # Set environment variables for CUDA include path
-        echo "INCLUDE=$env:INCLUDE;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$cuda_version\include\" >> $env:GITHUB_ENV
-        
-        # Set the index URL for PyTorch wheels
-        $index_url = "https://download.pytorch.org/whl/$cuda_short"
+        $pytorch_index_url = "https://download.pytorch.org/whl/$cuda_short_tag"
+        Write-Host "PyTorch Index URL: $pytorch_index_url"
 
-        if ($pytorch_version -eq "latest") {
-          Write-Host "Installing latest PyTorch for CUDA $cuda_version"
-          pip install torch torchvision --index-url $index_url
+        if ($pytorch_version_input -eq "latest") {
+          Write-Host "Installing latest PyTorch for CUDA $cuda_version_input ($cuda_short_tag)"
+          pip install torch torchvision torchaudio --index-url $pytorch_index_url
         } else {
-          Write-Host "Installing PyTorch $pytorch_version for CUDA $cuda_version"
-          # For specific versions, we need to determine compatible torchvision version
-          # This is a simplified mapping - in practice, you might want more sophisticated logic
-          $torchvision_version = switch ($pytorch_version) {
-            "2.0.1" { "0.15.2" }
-            "2.1.0" { "0.16.0" }
-            "2.4.0" { "0.19.0" }
-            "2.5.0" { "0.20.0" }
-            "2.6.0" { "0.21.0" }
-            default {
-              Write-Host "Warning: Unknown torchvision version for PyTorch $pytorch_version, installing without version constraint"
-              $null
-            }
-          }
-
-          if ($torchvision_version) {
-            pip install "torch==$pytorch_version+$cuda_short" "torchvision==$torchvision_version+$cuda_short" --index-url $index_url
+          Write-Host "Installing PyTorch $pytorch_version_input for CUDA $cuda_version_input ($cuda_short_tag)"
+          $torch_package_version = "$pytorch_version_input+$cuda_short_tag"
+          if ($pytorch_version_input -eq "2.6.0") {
+            pip install "torch==$torch_package_version" "torchvision==0.21.0+$cuda_short_tag" "torchaudio==2.6.0+$cuda_short_tag" --index-url $pytorch_index_url
           } else {
-            pip install "torch==$pytorch_version+$cuda_short" torchvision --index-url $index_url
+            pip install "torch==$torch_package_version" torchvision torchaudio --index-url $pytorch_index_url
           }
         }
+        python -c "import torch; print(f'PyTorch version: {torch.__version__}'); print(f'Torch CUDA version: {torch.version.cuda}')"
 
     - name: Install PyTorch (Linux)
       if: runner.os == 'Linux'
       run: |
-        cuda_version="${{ matrix.cuda-version }}"
-        pytorch_version="${{ github.event.inputs.pytorch_version || 'latest' }}"
-
-        # Determine CUDA short version for wheel index
-        case "$cuda_version" in
-          "11.8")
-            cuda_short="cu118"
-            ;;
-          "12.1")
-            cuda_short="cu121"
-            ;;
-          "12.4")
-            cuda_short="cu124"
-            ;;
-          "12.6")
-            cuda_short="cu126"
-            ;;
-          "12.8")
-            cuda_short="cu128"
-            ;;
-          *)
-            echo "Error: Unsupported CUDA version: $cuda_version"
-            exit 1
-            ;;
+        cuda_version_input="${{ matrix.cuda-version }}"
+        pytorch_version_input="${{ github.event.inputs.pytorch_version || 'latest' }}"
+        cuda_short_tag=""
+        case "$cuda_version_input" in
+          "11.8") cuda_short_tag="cu118" ;;
+          "12.1") cuda_short_tag="cu121" ;;
+          "12.4") cuda_short_tag="cu124" ;;
+          "12.6") cuda_short_tag="cu126" ;;
+          *) echo "Error: Unsupported CUDA version for PyTorch wheels: $cuda_version_input"; exit 1 ;;
         esac
+        pytorch_index_url="https://download.pytorch.org/whl/$cuda_short_tag"
+        echo "PyTorch Index URL: $pytorch_index_url"
 
-        index_url="https://download.pytorch.org/whl/$cuda_short"
-
-        if [ "$pytorch_version" = "latest" ]; then
-          echo "Installing latest PyTorch for CUDA $cuda_version"
-          pip install torch torchvision --index-url "$index_url"
+        if [ "$pytorch_version_input" = "latest" ]; then
+          echo "Installing latest PyTorch for CUDA $cuda_version_input ($cuda_short_tag)"
+          pip install torch torchvision torchaudio --index-url "$pytorch_index_url"
         else
-          echo "Installing PyTorch $pytorch_version for CUDA $cuda_version"
-          # Determine compatible torchvision version
-          case "$pytorch_version" in
-            "2.0.1")
-              torchvision_version="0.15.2"
-              ;;
-            "2.1.0")
-              torchvision_version="0.16.0"
-              ;;
-            "2.4.0")
-              torchvision_version="0.19.0"
-              ;;
-            "2.5.0")
-              torchvision_version="0.20.0"
-              ;;
-            "2.6.0")
-              torchvision_version="0.21.0"
-              ;;
-            *)
-              echo "Warning: Unknown torchvision version for PyTorch $pytorch_version, installing without version constraint"
-              torchvision_version=""
-              ;;
-          esac
-
-          if [ -n "$torchvision_version" ]; then
-            pip install "torch==$pytorch_version+$cuda_short" "torchvision==$torchvision_version+$cuda_short" --index-url "$index_url"
+          echo "Installing PyTorch $pytorch_version_input for CUDA $cuda_version_input ($cuda_short_tag)"
+          torch_package_version="$pytorch_version_input+$cuda_short_tag"
+          if [ "$pytorch_version_input" = "2.6.0" ]; then
+            pip install "torch==$torch_package_version" "torchvision==0.21.0+$cuda_short_tag" "torchaudio==2.6.0+$cuda_short_tag" --index-url "$pytorch_index_url"
           else
-            pip install "torch==$pytorch_version+$cuda_short" torchvision --index-url "$index_url"
+            pip install "torch==$torch_package_version" torchvision torchaudio --index-url "$pytorch_index_url"
           fi
         fi
+        python -c "import torch; print(f'PyTorch version: {torch.__version__}'); print(f'Torch CUDA version: {torch.version.cuda}')"
        
-    # Set up CUDA environment (Windows)
     - name: Set up CUDA environment (Windows)
       if: runner.os == 'Windows'
       shell: pwsh
       run: |
-        $cuda_version = "${{ matrix.cuda-version }}"
-        $cuda_root = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$cuda_version"
+        $cuda_version_matrix = "${{ matrix.cuda-version }}"
+        $cuda_root_dir = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$cuda_version_matrix"
         
-        # Print current environment
-        Write-Host "Initial environment:"
-        Write-Host "INCLUDE: $env:INCLUDE"
-        Write-Host "LIB: $env:LIB"
-        Write-Host "PATH: $env:PATH"
-
-        # Set up all necessary CUDA paths
-        $include_paths = @(
-            "$cuda_root\include",
-            "$cuda_root\extras\CUPTI\include",
-            "$cuda_root\nvvm\include",
-            "$cuda_root\include\crt",
-            "C:\sparsehash\src"
+        Write-Host "Initial environment (before CUDA setup):"
+        Get-ChildItem Env: | Where-Object {$_.Name -in @("INCLUDE", "LIB", "PATH")} | Format-Table -AutoSize
+        
+        $cuda_include_paths = @(
+            "$cuda_root_dir\include",
+            "$cuda_root_dir\extras\CUPTI\include",
+            "$cuda_root_dir\nvvm\include"
+        ) -join ";"
+        $cuda_lib_paths = @(
+            "$cuda_root_dir\lib\x64",
+            "$cuda_root_dir\extras\CUPTI\lib64"
         ) -join ";"
 
-        $lib_paths = @(
-            "$cuda_root\lib\x64",
-            "$cuda_root\extras\CUPTI\lib64"
-        ) -join ";"
-
-        # Set environment variables
-        $env:CUDA_PATH = $cuda_root
-        $env:CUDA_HOME = $cuda_root
-        $env:CUDA_TOOLKIT_ROOT_DIR = $cuda_root
-
-        # Verify paths exist
+        echo "CUDA_PATH=$cuda_root_dir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "CUDA_HOME=$cuda_root_dir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "CUDA_TOOLKIT_ROOT_DIR=$cuda_root_dir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        
+        echo "INCLUDE=$cuda_include_paths;$($env:INCLUDE)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "LIB=$cuda_lib_paths;$($env:LIB)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "PATH=$cuda_root_dir\bin;$($env:PATH)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        
         Write-Host "Verifying CUDA paths..."
-        @("$cuda_root\include", "$cuda_root\lib\x64") | ForEach-Object {
-            if (Test-Path $_) {
-                Write-Host "✅ Found: $_"
-            } else {
-                Write-Error "❌ Missing: $_"
-                exit 1
-            }
-        }
-        # Set environment variables for subsequent steps
-        echo "INCLUDE=$include_paths;C:\sparsehash\src;$env:INCLUDE" >> $env:GITHUB_ENV
-        echo "LIB=$lib_paths;$env:LIB" >> $env:GITHUB_ENV
-        echo "PATH=$cuda_root\bin;$env:PATH" >> $env:GITHUB_ENV
-        echo "CUDA_PATH=$cuda_root" >> $env:GITHUB_ENV
-        echo "CUDA_HOME=$cuda_root" >> $env:GITHUB_ENV
-        echo "CUDA_TOOLKIT_ROOT_DIR=$cuda_root" >> $env:GITHUB_ENV
-        
-        # Set additional CUDA compile flags
-        echo "NVCC_FLAGS=--use-local-env -Xcompiler /MD -Xcompiler /O2" >> $env:GITHUB_ENV
-        echo "CUDA_NVCC_FLAGS=--use-local-env -Xcompiler /MD -Xcompiler /O2" >> $env:GITHUB_ENV
-
-        # Verify CUDA setup
-        Write-Host "CUDA Environment Setup:"
-        Write-Host "CUDA_PATH: $cuda_root"
-        Write-Host "INCLUDE paths: $include_paths"
-        Write-Host "LIB paths: $lib_paths"
-        
-        # List CUDA include directory contents
-        Write-Host "CUDA include directory contents:"
-        Get-ChildItem "$cuda_root\include" | Select-Object Name
-        
-        # Verify CUDA libraries
-        Write-Host "Verifying CUDA libraries..."
-        $required_libs = @("cusparse", "cudart", "cublas", "cufft", "curand")
-        $required_libs | ForEach-Object {
-            $lib = "$cuda_root\lib\x64\$_.lib"
-            if (Test-Path $lib) {
-                Write-Host "✅ Found: $lib"
-            } else {
-                Write-Error "❌ Missing: $lib"
-                exit 1
-            }
-        }
-
-        # Verify NVCC
+        if (-not (Test-Path "$cuda_root_dir\include")) { Write-Error "❌ Missing: $cuda_root_dir\include"; exit 1 } else { Write-Host "✅ Found: $cuda_root_dir\include" }
+        if (-not (Test-Path "$cuda_root_dir\lib\x64")) { Write-Error "❌ Missing: $cuda_root_dir\lib\x64"; exit 1 } else { Write-Host "✅ Found: $cuda_root_dir\lib\x64" }
         Write-Host "NVCC version:"
         nvcc --version
-    # Set build environment (Windows)
+
     - name: Set build environment (Windows)
       if: runner.os == 'Windows'
       shell: pwsh
       run: |
-        # Set environment variables for optimized Windows build
-        echo "CL=/O2 /MP4 /DWIN32 /D_WINDOWS" >> $env:GITHUB_ENV
-        echo "DISTUTILS_USE_SDK=1" >> $env:GITHUB_ENV
-        echo "MSSdk=1" >> $env:GITHUB_ENV
-        echo "FORCE_CUDA=1" >> $env:GITHUB_ENV
-        echo "TORCH_CUDA_ARCH_LIST=7.5;8.0;8.6;8.9" >> $env:GITHUB_ENV
-        echo "MAX_JOBS=4" >> $env:GITHUB_ENV
-        # Add MSVC specific defines
-        echo "_CRT_SECURE_NO_WARNINGS=1" >> $env:GITHUB_ENV
-        echo "_SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING=1" >> $env:GITHUB_ENV
+        echo "DISTUTILS_USE_SDK=1" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "MSSdk=1" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "FORCE_CUDA=1" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "TORCH_CUDA_ARCH_LIST=7.5;8.0;8.6;8.9;9.0" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "MAX_JOBS=$(Get-CimInstance Win32_Processor | Measure-Object -Property NumberOfLogicalProcessors -Sum).Sum" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "_CRT_SECURE_NO_WARNINGS=1" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "_SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING=1" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
     - name: Set build environment (Linux)
       if: runner.os == 'Linux'
       run: |
-        # Set environment variables for optimized Linux build
-        echo "CXXFLAGS=-O2 -fopenmp" >> $GITHUB_ENV
-        echo "CFLAGS=-O2" >> $GITHUB_ENV
         echo "FORCE_CUDA=1" >> $GITHUB_ENV
-        echo "TORCH_CUDA_ARCH_LIST=7.5;8.0;8.6;8.9" >> $GITHUB_ENV
-        echo "MAX_JOBS=4" >> $GITHUB_ENV
+        echo "TORCH_CUDA_ARCH_LIST=7.5;8.0;8.6;8.9;9.0" >> $GITHUB_ENV
+        echo "MAX_JOBS=$(nproc)" >> $GITHUB_ENV
+        # CXXFLAGS/CFLAGS from setup.py will be used for the extension
 
     - name: Build wheel
-      shell: pwsh
+      shell: pwsh # Using pwsh for consistency, bash for Linux specific commands if any
       run: |
-        # Print environment for debugging
-        Write-Host "Build Environment:"
-        Write-Host "INCLUDE: $env:INCLUDE"
-        Write-Host "LIB: $env:LIB"
-        Write-Host "PATH: $env:PATH"
+        Write-Host "--- Build Environment Variables ---"
+        Get-ChildItem Env: | Sort-Object Name | Format-Table Name, Value -AutoSize
+        Write-Host "-----------------------------------"
+        Write-Host "Python version for build: $(python --version)"
+        Write-Host "PyTorch version for build: $(python -c "import torch; print(torch.__version__)")"
         Write-Host "CUDA_PATH: $env:CUDA_PATH"
         Write-Host "CUDA_HOME: $env:CUDA_HOME"
         
-        # Verify CUDA libraries are accessible
-        if (Test-Path "$env:CUDA_PATH\lib\x64\cusparse.lib") {
-            Write-Host "✅ CUDA libraries found"
-        } else {
-            Write-Error "❌ CUDA libraries not found"
-            exit 1
+        if ($env:RUNNER_OS -eq 'Windows') {
+            if (Test-Path "$env:CUDA_PATH\lib\x64\cusparse.lib") {
+                Write-Host "✅ Windows: CUDA cusparse.lib found"
+            } else {
+                Write-Error "❌ Windows: CUDA cusparse.lib not found at $env:CUDA_PATH\lib\x64\cusparse.lib. Full include path: $env:INCLUDE. Full lib path: $env:LIB"
+                exit 1
+            }
         }
         
-        python setup.py bdist_wheel
-      env:
-        INCLUDE: ${{ env.INCLUDE }}
-        LIB: ${{ env.LIB }}
-        PATH: ${{ env.PATH }}
-        CUDA_PATH: ${{ env.CUDA_PATH }}
-        CUDA_HOME: ${{ env.CUDA_HOME }}
-        CUDA_TOOLKIT_ROOT_DIR: ${{ env.CUDA_TOOLKIT_ROOT_DIR }}
-        CL: ${{ env.CL }}
-        DISTUTILS_USE_SDK: ${{ env.DISTUTILS_USE_SDK }}
-        MSSdk: ${{ env.MSSdk }}
-        FORCE_CUDA: ${{ env.FORCE_CUDA }}
-        TORCH_CUDA_ARCH_LIST: ${{ env.TORCH_CUDA_ARCH_LIST }}
-        MAX_JOBS: ${{ env.MAX_JOBS }}
+        python setup.py bdist_wheel --verbose
 
     - name: Test wheel installation (Windows)
       if: runner.os == 'Windows'
       shell: pwsh
       run: |
-        # Install the built wheel
         $wheel = Get-ChildItem -Path "dist" -Filter "*.whl" | Select-Object -First 1
+        if (-not $wheel) { Write-Error "No wheel found in dist directory."; exit 1 }
+        Write-Host "Installing wheel: $($wheel.FullName)"
         pip install $wheel.FullName
-
-        # Test basic functionality
         python -c "import torchsparse; print(f'TorchSparse version: {torchsparse.__version__}')"
-        python -c "import torch; import torchsparse; print('Basic import test passed')"
+        python -c "import torch; import torchsparse; print('Basic import test passed for torchsparse on Windows')"
 
     - name: Test wheel installation (Linux)
       if: runner.os == 'Linux'
       run: |
-        # Install the built wheel
-        wheel=$(find dist -name "*.whl" | head -1)
-        pip install "$wheel"
-
-        # Test basic functionality
+        wheel_path=$(find dist -name "*.whl" | head -n 1)
+        if [ -z "$wheel_path" ]; then echo "No wheel found in dist directory."; exit 1; fi
+        echo "Installing wheel: $wheel_path"
+        pip install "$wheel_path"
         python -c "import torchsparse; print(f'TorchSparse version: {torchsparse.__version__}')"
-        python -c "import torch; import torchsparse; print('Basic import test passed')"
+        python -c "import torch; import torchsparse; print('Basic import test passed for torchsparse on Linux')"
 
     - name: Upload wheel artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: wheels-${{ runner.os }}-python${{ matrix.python-version }}-cuda${{ matrix.cuda-version }}
+        name: wheels-${{ runner.os }}-py${{ matrix.python-version }}-cuda${{ matrix.cuda-version }}
         path: dist/*.whl
 
   create-release:
     needs: build-wheels
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
-
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-
     - name: Download all wheel artifacts
       uses: actions/download-artifact@v4
       with:
         path: wheels
-
     - name: Organize wheels
       run: |
-        mkdir -p release
-        find wheels -name "*.whl" -exec cp {} release/ \;
-        ls -la release/
-
+        mkdir -p release_wheels
+        find wheels -name "*.whl" -exec cp -v {} release_wheels/ \;
+        echo "Collected wheels in release_wheels/:"
+        ls -lR release_wheels/
     - name: Create release notes
+      id: create_release_notes
       run: |
-        cat > release_notes.md << 'EOF'
-        # TorchSparse v${{ github.ref_name }} - Cross-Platform Release
+        cat > release_notes.md <<EOF
+        # TorchSparse v${{ github.ref_name }}
 
-        ## 🎉 What's New
+        Official release for TorchSparse version ${{ github.ref_name }}.
 
-        This release provides comprehensive cross-platform support for TorchSparse with extensive compatibility fixes and expanded version support.
-
-        ### ✅ Platform Support
-        - **Windows**: Full native support with MSVC compatibility
-        - **Linux**: Enhanced build system with automatic dependency resolution
-        - **Cross-Platform**: Unified build system for both platforms
-
-        ### 🔧 Compatibility Features
-        - **MSVC Compatibility**: Full support for Visual Studio 2019/2022
-        - **GCC Support**: Optimized builds for Linux environments
-        - **Type Safety**: Fixed all platform-specific type issues
-        - **Dependency Resolution**: Automated sparsehash handling
-        - **Memory Optimization**: Platform-specific build optimizations
-
-        ### 📦 Available Packages
-
-        | Platform | Python 3.8 | Python 3.9 | Python 3.10 | Python 3.11 | Python 3.12 |
-        |----------|-------------|-------------|--------------|-------------|-------------|
-        | **Windows** | | | | | |
-        | CUDA 11.8 | ✅ | ✅ | ✅ | ✅ | ❌ |
-        | CUDA 12.1 | ✅ | ✅ | ✅ | ✅ | ✅ |
-        | CUDA 12.4 | ✅ | ✅ | ✅ | ✅ | ✅ |
-        | CUDA 12.6 | ✅ | ✅ | ✅ | ✅ | ✅ |
-        | CUDA 12.8 | ✅ | ✅ | ✅ | ✅ | ✅ |
-        | **Linux** | | | | | |
-        | CUDA 11.8 | ✅ | ✅ | ✅ | ✅ | ❌ |
-        | CUDA 12.1 | ✅ | ✅ | ✅ | ✅ | ✅ |
-        | CUDA 12.4 | ✅ | ✅ | ✅ | ✅ | ✅ |
-        | CUDA 12.6 | ✅ | ✅ | ✅ | ✅ | ✅ |
-        | CUDA 12.8 | ✅ | ✅ | ✅ | ✅ | ✅ |
-
-        ### 🚀 Quick Installation
-
-        ```bash
-        # Windows - Download appropriate wheel
-        pip install [windows_wheel_name_from_assets_below]
-
-        # Linux - Download appropriate wheel
-        pip install [linux_wheel_name_from_assets_below]
-
-        # Or install directly from GitHub
-        pip install git+https://github.com/Deathdadev/torchsparse.git
-        ```
-
-        ### ⚙️ Build Configuration Options
-
-        The workflow supports flexible PyTorch version selection:
-        - **Latest PyTorch**: Use `pytorch_version: "latest"` (default) for newest compatible versions
-        - **Specific PyTorch**: Use `pytorch_version: "2.4.0"` for reproducible builds
-        - **CUDA Compatibility**: Automatic CUDA wheel index selection (cu118, cu121, cu124, cu126, cu128)
-
-        ### 📋 System Requirements
-
-        **Windows:**
-        - OS: Windows 10/11 (x64)
-        - Python: 3.8-3.12
-        - PyTorch: 1.9.0+ to 2.5.0+
-        - CUDA: 11.8, 12.1, 12.4, 12.6, or 12.8
-        - Visual Studio: 2019 or 2022
-
-        **Linux:**
-        - OS: Ubuntu 20.04+, CentOS 8+, or equivalent
-        - Python: 3.8-3.12
-        - PyTorch: 1.9.0+ to 2.5.0+
-        - CUDA: 11.8, 12.1, 12.4, 12.6, or 12.8
-        - GCC: 9.0+
-
-        ### 🎯 PyTorch & CUDA Version Support
-
-        | CUDA Version | Supported PyTorch Versions | Wheel Index |
-        |--------------|----------------------------|-------------|
-        | 11.8 | 2.0.0+ (latest recommended) | cu118 |
-        | 12.1 | 2.1.0+ (latest recommended) | cu121 |
-        | 12.4 | 2.4.0+ (latest recommended) | cu124 |
-        | 12.6 | 2.5.0+ (latest recommended) | cu126 |
-        | 12.8 | 2.5.0+ (latest recommended) | cu128 |
-
-        **Note**: The workflow supports both specific PyTorch versions and "latest" for maximum flexibility.
-        When using "latest", the newest compatible PyTorch version for each CUDA version is automatically installed.
-
-        ### 📚 Documentation
-
-        - [Cross-Platform Setup Guide](CROSS_PLATFORM_SETUP_GUIDE.md)
-        - [Troubleshooting Guide](TROUBLESHOOTING.md)
-        - [Build Instructions](build_wheels.py)
-        - [Installation Verification](verify_installation.py)
-
-        ### 🐛 Bug Fixes
-
-        - Fixed MSVC compilation errors on Windows
-        - Resolved memory exhaustion during builds
-        - Fixed sparsehash dependency issues across platforms
-        - Improved cross-platform environment detection
-        - Enhanced build system for multiple PyTorch versions
-
-        ### 🔄 Build System Improvements
-
-        - Automated cross-platform wheel building
-        - Support for multiple PyTorch/CUDA combinations
-        - Intelligent dependency resolution
-        - Platform-specific optimizations
-        - Comprehensive testing pipeline
-
-        ---
-
-        **Note**: These wheels support both Windows and Linux with comprehensive version coverage.
-        Choose the appropriate wheel for your platform, Python version, and CUDA version.
+        ## Wheels
+        Attached wheels provide support for various Python and CUDA versions on Linux and Windows.
+        Please check the file names for platform, Python version, and CUDA compatibility.
         EOF
-
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
       with:
-        files: release/*.whl
+        files: release_wheels/*.whl
         body_path: release_notes.md
         tag_name: ${{ github.ref_name }}
-        name: TorchSparse ${{ github.ref_name }} - Cross-Platform Release
+        name: TorchSparse ${{ github.ref_name }}
         draft: false
         prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   test-wheels:
-    needs: [build-wheels, generate-matrix]
+    needs: [build-wheels] # generate-matrix not needed if matrix is static for test
     strategy:
       matrix:
         os: [windows-2022, ubuntu-22.04]
-        python-version: ['3.11']  # Test with one version
-        cuda-version: ['12.6']    # Test with stable CUDA version
-
+        python-version: ['3.11']
+        cuda-version: ['12.6']
     runs-on: ${{ matrix.os }}
-
     steps:
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
@@ -766,108 +357,116 @@ jobs:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'
 
-    # Cache CUDA toolkit for tests
-    - name: Cache CUDA Toolkit
-      uses: actions/cache@v4
-      id: cuda-toolkit-cache
-      with:
-        path: |
-          C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
-          /usr/local/cuda
-        key: cuda-toolkit-test-${{ runner.os }}-${{ matrix.cuda-version }}-v1
-
-    - name: Install CUDA Toolkit ${{ matrix.cuda-version }}
-      if: steps.cuda-toolkit-cache.outputs.cache-hit != 'true'
+    - name: Install CUDA Toolkit (Test) - Optional
+      if: runner.os == 'Windows' # Example: only install full toolkit on Windows for test if needed
       uses: Jimver/cuda-toolkit@v0.2.23
       with:
         cuda: ${{ matrix.cuda-version }}.0
         method: 'network'
+        # sub-packages: '["cudart"]' # Minimal for runtime
 
-    # Cache PyTorch wheels for tests
-    - name: Cache PyTorch wheels
-      uses: actions/cache@v4
-      id: pytorch-cache-test
-      with:
-        path: |
-          ~/.cache/pip
-          C:/Users/runneradmin/AppData/Local/pip/Cache
-        key: pytorch-test-${{ runner.os }}-${{ matrix.python-version }}-${{ matrix.cuda-version }}-v1
-
-    - name: Download wheel artifacts
+    - name: Download wheel artifact for testing
       uses: actions/download-artifact@v4
       with:
-        name: wheels-${{ runner.os }}-python${{ matrix.python-version }}-cuda${{ matrix.cuda-version }}
-        path: wheels
+        name: wheels-${{ runner.os }}-py${{ matrix.python-version }}-cuda${{ matrix.cuda-version }}
+        path: downloaded_wheel
 
-    - name: Install PyTorch (Windows)
-      if: runner.os == 'Windows'
+    - name: Install PyTorch for testing
+      shell: bash
       run: |
-        pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu126
+        PYTORCH_CUDA_TAG=""
+        TARGET_PYTORCH_VERSION=""
+        TARGET_TORCHVISION_VERSION=""
+        TARGET_TORCHAUDIO_VERSION=""
 
-    - name: Install PyTorch (Linux)
-      if: runner.os == 'Linux'
+        if [ "${{ matrix.cuda-version }}" = "12.6" ]; then
+          PYTORCH_CUDA_TAG="cu126"
+          TARGET_PYTORCH_VERSION="2.6.0" # Align with build
+          TARGET_TORCHVISION_VERSION="0.21.0"
+          TARGET_TORCHAUDIO_VERSION="2.6.0"
+        elif [ "${{ matrix.cuda-version }}" = "12.1" ]; then
+          PYTORCH_CUDA_TAG="cu121"
+          TARGET_PYTORCH_VERSION="2.1.0" # Example
+          TARGET_TORCHVISION_VERSION="0.16.0"
+          TARGET_TORCHAUDIO_VERSION="2.1.0"
+        else
+          echo "Unsupported CUDA version for PyTorch test install: ${{ matrix.cuda-version }}"
+          exit 1
+        fi
+        
+        echo "Installing PyTorch $TARGET_PYTORCH_VERSION+$PYTORCH_CUDA_TAG, torchvision $TARGET_TORCHVISION_VERSION+$PYTORCH_CUDA_TAG, torchaudio $TARGET_TORCHAUDIO_VERSION+$PYTORCH_CUDA_TAG"
+        pip install "torch==$TARGET_PYTORCH_VERSION+$PYTORCH_CUDA_TAG" \
+                    "torchvision==$TARGET_TORCHVISION_VERSION+$PYTORCH_CUDA_TAG" \
+                    "torchaudio==$TARGET_TORCHAUDIO_VERSION+$PYTORCH_CUDA_TAG" \
+                    --index-url https://download.pytorch.org/whl/$PYTORCH_CUDA_TAG
+
+    - name: Test wheel installation and functionality
+      shell: bash
       run: |
-        pip install torch==2.1.0+cu121 torchvision==0.16.0+cu121 --index-url https://download.pytorch.org/whl/cu121
+        WHEEL_FILE=$(find downloaded_wheel -name "*.whl" | head -n 1)
+        if [ -z "$WHEEL_FILE" ]; then echo "No wheel found in downloaded_wheel directory."; exit 1; fi
+        echo "Installing downloaded wheel: $WHEEL_FILE"
+        pip install "$WHEEL_FILE" --force-reinstall # Ensure it installs over any other version
 
-    - name: Test wheel installation and functionality (Windows)
-      if: runner.os == 'Windows'
-      shell: powershell
-      run: |
-        # Install the wheel
-        $wheel = Get-ChildItem -Path "wheels" -Filter "*.whl" | Select-Object -First 1
-        pip install $wheel.FullName
-
-        # Run comprehensive tests
+        echo "Running Python test script..."
         python -c "
         import torch
         import torchsparse
-        import numpy as np
+        import numpy as np # Often used, though not strictly in this basic test
+        import os # For platform info
 
+        print(f'--- Test Environment ---')
         print(f'TorchSparse version: {torchsparse.__version__}')
         print(f'PyTorch version: {torch.__version__}')
-        print(f'CUDA available: {torch.cuda.is_available()}')
-        print(f'Platform: Windows')
-
-        # Test basic functionality
-        coords = torch.randint(0, 10, (100, 4))
-        feats = torch.randn(100, 16)
-
+        print(f'PyTorch CUDA available: {torch.cuda.is_available()}')
         if torch.cuda.is_available():
-            coords = coords.cuda()
-            feats = feats.cuda()
+            print(f'PyTorch CUDA version: {torch.version.cuda}')
+            print(f'CUDA Device Name: {torch.cuda.get_device_name(0)}')
+        print(f'Platform: {os.name} ({os.uname() if hasattr(os, \"uname\") else \"Windows\"})')
+        print(f'------------------------')
 
-        sparse_tensor = torchsparse.SparseTensor(coords=coords, feats=feats)
-        print(f'Sparse tensor shape: {sparse_tensor.shape}')
-        print('✅ All tests passed!')
+        # Basic functionality test
+        try:
+            print('Creating sparse tensor data...')
+            # Example: 3 points in a 4D space (e.g., batch, x, y, z)
+            coords_data = [[0, 0, 0, 0], [0, 0, 1, 1], [0, 1, 2, 3]]
+            # Features for each point (2 features per point)
+            feats_data = [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]
+            
+            coords = torch.tensor(coords_data, dtype=torch.int)
+            feats = torch.tensor(feats_data, dtype=torch.float)
+
+            if torch.cuda.is_available():
+                print('Moving tensors to CUDA device 0...')
+                coords = coords.to('cuda:0')
+                feats = feats.to('cuda:0')
+            else:
+                print('CUDA not available, using CPU for test.')
+
+            print(f'Coords shape: {coords.shape}, Feats shape: {feats.shape}, Device: {coords.device}')
+            
+            # Create SparseTensor
+            # Stride can be a single int or a list/tuple matching spatial dimensions
+            # For 4D coords (B, Z, Y, X), spatial_dims is usually Z, Y, X.
+            # If your data is (B, X, Y, Z), adjust accordingly.
+            # Let's assume default stride and let SparseTensor infer shape.
+            sparse_tensor = torchsparse.SparseTensor(coords=coords, feats=feats)
+            
+            print(f'Sparse tensor created successfully.')
+            print(f'  Shape: {sparse_tensor.shape}')
+            print(f'  Device: {sparse_tensor.device}')
+            print(f'  Stride: {sparse_tensor.stride}')
+            print(f'  Spatial Strides: {sparse_tensor.spatial_strides}') # Added this
+            print(f'  Number of points: {len(sparse_tensor)}')
+
+            # Test a simple operation if available, e.g., to_dense (can be memory intensive)
+            # dense_tensor = sparse_tensor.to_dense()
+            # print(f'  Dense tensor shape: {dense_tensor.shape}')
+
+            print('✅ Basic SparseTensor creation and properties test passed!')
+        except Exception as e:
+            print(f'❌ Test failed: {e}')
+            import traceback
+            traceback.print_exc()
+            exit(1)
         "
-
-    - name: Test wheel installation and functionality (Linux)
-      if: runner.os == 'Linux'
-      run: |
-        # Install the wheel
-        wheel=$(find wheels -name "*.whl" | head -1)
-        pip install "$wheel"
-
-        # Run comprehensive tests
-        python -c "
-        import torch
-        import torchsparse
-        import numpy as np
-
-        print(f'TorchSparse version: {torchsparse.__version__}')
-        print(f'PyTorch version: {torch.__version__}')
-        print(f'CUDA available: {torch.cuda.is_available()}')
-        print(f'Platform: Linux')
-
-        # Test basic functionality
-        coords = torch.randint(0, 10, (100, 4))
-        feats = torch.randn(100, 16)
-
-        if torch.cuda.is_available():
-            coords = coords.cuda()
-            feats = feats.cuda()
-
-        sparse_tensor = torchsparse.SparseTensor(coords=coords, feats=feats)
-        print(f'Sparse tensor shape: {sparse_tensor.shape}')
-        print('✅ All tests passed!')
-        '

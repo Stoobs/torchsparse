@@ -125,6 +125,7 @@ jobs:
       with:
         arch: amd64
 
+        
     - name: Install sparsehash (Windows)
       if: runner.os == 'Windows'
       shell: pwsh
@@ -133,6 +134,50 @@ jobs:
         Invoke-WebRequest -Uri "https://github.com/sparsehash/sparsehash/archive/refs/tags/sparsehash-2.0.4.zip" -OutFile "sparsehash.zip"
         Expand-Archive -Path "sparsehash.zip" -DestinationPath "C:\"
         Rename-Item "C:\sparsehash-sparsehash-2.0.4" "C:\sparsehash"
+        
+        # Create sparseconfig.h for Windows
+        $sparseconfig = @"
+        #ifndef GOOGLE_SPARSEHASH_SPARSECONFIG_H_
+        #define GOOGLE_SPARSEHASH_SPARSECONFIG_H_
+
+        // Configure for MSVC
+        #if defined(_MSC_VER)
+        #define GOOGLE_SPARSEHASH_HAS_HASH_MAP 0
+        #define GOOGLE_SPARSEHASH_HAS_HASH_SET 0
+        #define GOOGLE_SPARSEHASH_HAS_EXT_HASH_MAP 0
+        #define GOOGLE_SPARSEHASH_HAS_EXT_HASH_SET 0
+
+        #define SPARSEHASH_NAMESPACE_START() namespace google {
+        #define SPARSEHASH_NAMESPACE_END() }
+
+        // Required includes for basic types
+        #include <stdint.h>
+        #include <inttypes.h>
+        #include <stddef.h>
+        #endif
+
+        #endif  // GOOGLE_SPARSEHASH_SPARSECONFIG_H_
+        "@
+
+        # Create the internal directory if it doesn't exist
+        New-Item -Path "C:\sparsehash\src\sparsehash\internal" -ItemType Directory -Force
+        
+        # Write the sparseconfig.h file
+        Set-Content -Path "C:\sparsehash\src\sparsehash\internal\sparseconfig.h" -Value $sparseconfig
+        
+        # Verify the file was created and print contents for debugging
+        if (Test-Path "C:\sparsehash\src\sparsehash\internal\sparseconfig.h") {
+            Write-Host "✅ sparseconfig.h created successfully"
+            Write-Host "Contents of sparseconfig.h:"
+            Get-Content "C:\sparsehash\src\sparsehash\internal\sparseconfig.h"
+        } else {
+            Write-Error "❌ Failed to create sparseconfig.h"
+            exit 1
+        }
+
+        # Additional verification
+        Write-Host "Directory structure:"
+        Get-ChildItem "C:\sparsehash\src\sparsehash" -Recurse | Select-Object FullName
 
     # Set sparsehash environment variable regardless of cache hit
     - name: Set sparsehash environment (Windows)

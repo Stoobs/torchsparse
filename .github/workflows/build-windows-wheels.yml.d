@@ -114,18 +114,6 @@ jobs:
         method: 'network'
         sub-packages: '["nvcc", "cudart", "cublas", "curand", "cufft", "cusparse", "cusolver"]'
 
-    - name: Install sparsehash (Windows)
-      if: runner.os == 'Windows'
-      shell: pwsh
-      run: |
-        # Download and extract sparsehash
-        Invoke-WebRequest -Uri "https://github.com/sparsehash/sparsehash/archive/refs/tags/sparsehash-2.0.4.zip" -OutFile "sparsehash.zip"
-        Expand-Archive -Path "sparsehash.zip" -DestinationPath "C:\"
-        Rename-Item "C:\sparsehash-sparsehash-2.0.4" "C:\sparsehash"
-
-        # Set environment variable for subsequent steps
-        echo "INCLUDE=$env:INCLUDE;C:\sparsehash\src" >> $env:GITHUB_ENV
-
     - name: Setup Visual Studio environment (Windows)
       if: runner.os == 'Windows'
       uses: ilammy/msvc-dev-cmd@v1

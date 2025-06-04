@@ -116,8 +116,8 @@ jobs:
       with:
         cuda: ${{ matrix.cuda-version }}.0
         method: 'network'
-        # Include all necessary CUDA components
-        sub-packages: '["nvcc", "visual_studio_integration", "cudart", "cublas", "cublas_dev", "cusparse", "cusparse_dev", "cupti", "cufft", "cufft_dev", "curand", "curand_dev", "nvrtc_dev", "nvrtc"]'
+        # Include all necessary CUDA components including cuSolver
+        sub-packages: '["nvcc", "visual_studio_integration", "cudart", "cublas", "cublas_dev", "cusparse", "cusparse_dev", "cusolver", "cusolver_dev", "cupti", "cufft", "cufft_dev", "curand", "curand_dev", "nvrtc_dev", "nvrtc"]'
 
     - name: Setup Visual Studio environment (Windows)
       if: runner.os == 'Windows'

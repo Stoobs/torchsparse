@@ -162,7 +162,11 @@ jobs:
             exit 1
           }
         }
-
+        
+        # Set environment variables for CUDA include path
+        echo "INCLUDE=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$cuda_version\include;%INCLUDE%" >> $env:GITHUB_ENV
+        
+        # Set the index URL for PyTorch wheels
         $index_url = "https://download.pytorch.org/whl/$cuda_short"
 
         if ($pytorch_version -eq "latest") {

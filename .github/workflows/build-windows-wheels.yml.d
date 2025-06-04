@@ -163,6 +163,9 @@ jobs:
           }
         }
 
+        # set the path for CUDA include directory
+        echo "INCLUDE=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$cuda_version\include;%INCLUDE%" >> $env:GITHUB_ENV
+
         $index_url = "https://download.pytorch.org/whl/$cuda_short"
 
         if ($pytorch_version -eq "latest") {

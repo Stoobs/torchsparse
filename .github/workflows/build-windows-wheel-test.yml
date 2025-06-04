@@ -110,23 +110,14 @@ jobs:
           requirements.txt
           setup.py
 
-    # Cache CUDA toolkit
-    - name: Cache CUDA Toolkit
-      if: runner.os == 'Windows'
-      uses: actions/cache@v4
-      id: cuda-toolkit-cache
-      with:
-        path: |
-          C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
-        key: cuda-toolkit-${{ runner.os }}-${{ matrix.cuda-version }}-v1
-
     - name: Install CUDA Toolkit ${{ matrix.cuda-version }}
-      if: runner.os == 'Windows' && steps.cuda-toolkit-cache.outputs.cache-hit != 'true'
+      if: runner.os == 'Windows'
       uses: Jimver/cuda-toolkit@v0.2.23
       with:
         cuda: ${{ matrix.cuda-version }}.0
         method: 'network'
-        sub-packages: '["nvcc", "cudart", "cublas", "curand", "cufft", "cusparse", "cusolver"]'
+        # Include all necessary CUDA components
+        sub-packages: '["nvcc", "visual_studio_integration", "cudart", "cublas", "cublas_dev", "cusparse", "cusparse_dev", "cupti", "cufft", "cufft_dev", "curand", "curand_dev", "nvrtc_dev", "nvrtc"]'
 
     - name: Setup Visual Studio environment (Windows)
       if: runner.os == 'Windows'
@@ -134,17 +125,8 @@ jobs:
       with:
         arch: amd64
 
-    # Cache sparsehash installation for Windows
-    - name: Cache sparsehash
-      if: runner.os == 'Windows'
-      uses: actions/cache@v4
-      id: sparsehash-cache
-      with:
-        path: C:\sparsehash
-        key: sparsehash-${{ runner.os }}-2.0.4-v1
-
     - name: Install sparsehash (Windows)
-      if: runner.os == 'Windows' && steps.sparsehash-cache.outputs.cache-hit != 'true'
+      if: runner.os == 'Windows'
       shell: pwsh
       run: |
         # Download and extract sparsehash
@@ -170,15 +152,6 @@ jobs:
         python -m pip install --upgrade pip
         pip install wheel setuptools ninja
 
-    # Cache PyTorch wheels
-    - name: Cache PyTorch wheels
-      uses: actions/cache@v4
-      id: pytorch-cache
-      with:
-        path: |
-          ~/.cache/pip
-          C:/Users/runneradmin/AppData/Local/pip/Cache
-        key: pytorch-${{ runner.os }}-${{ matrix.python-version }}-${{ matrix.cuda-version }}-${{ github.event.inputs.pytorch_version || 'latest' }}-v1
 
     - name: Install PyTorch (Windows)
       if: runner.os == 'Windows'
@@ -297,20 +270,7 @@ jobs:
             pip install "torch==$pytorch_version+$cuda_short" torchvision --index-url "$index_url"
           fi
         fi
-
-    - name: Finding the includes... (Windows)
-      if: runner.os == 'Windows'
-      shell: pwsh
-      run: |
-        $cuda_version = "${{ matrix.cuda-version }}"
-        $cuda_include_path = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$cuda_version\include"
-        if (Test-Path $cuda_include_path) {
-          echo "INCLUDE=$env:INCLUDE;$cuda_include_path" >> $env:GITHUB_ENV
-        } else {
-          Write-Error "CUDA include path not found: $cuda_include_path"
-          exit 1
-        }
-        
+       
     # Set up CUDA environment (Windows)
     - name: Set up CUDA environment (Windows)
       if: runner.os == 'Windows'
@@ -318,44 +278,76 @@ jobs:
       run: |
         $cuda_version = "${{ matrix.cuda-version }}"
         $cuda_root = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$cuda_version"
-        $cuda_include = Join-Path $cuda_root "include"
         
-        # Verify CUDA paths exist
-        if (-not (Test-Path $cuda_root)) {
-            Write-Error "CUDA root path not found: $cuda_root"
-            exit 1
-        }
-        if (-not (Test-Path $cuda_include)) {
-            Write-Error "CUDA include path not found: $cuda_include"
-            exit 1
-        }
+        # Print current environment
+        Write-Host "Initial environment:"
+        Write-Host "INCLUDE: $env:INCLUDE"
+        Write-Host "LIB: $env:LIB"
+        Write-Host "PATH: $env:PATH"
 
-        # Set up environment variables
+        # Set up all necessary CUDA paths
+        $include_paths = @(
+            "$cuda_root\include",
+            "$cuda_root\extras\CUPTI\include",
+            "$cuda_root\nvvm\include",
+            "$cuda_root\include\crt",
+            "C:\sparsehash\src"
+        ) -join ";"
+
+        $lib_paths = @(
+            "$cuda_root\lib\x64",
+            "$cuda_root\extras\CUPTI\lib64"
+        ) -join ";"
+
+        # Set environment variables
         $env:CUDA_PATH = $cuda_root
         $env:CUDA_HOME = $cuda_root
         $env:CUDA_TOOLKIT_ROOT_DIR = $cuda_root
-        
-        # Add CUDA paths to system path
-        $env:PATH = "$cuda_root\bin;$env:PATH"
-        
-        # Set include paths
-        $include_paths = @(
-            $cuda_include,
-            "$cuda_root\bin",
-            "C:\sparsehash\src"
-        ) -join ";"
-        
+
+        # Verify paths exist
+        Write-Host "Verifying CUDA paths..."
+        @("$cuda_root\include", "$cuda_root\lib\x64") | ForEach-Object {
+            if (Test-Path $_) {
+                Write-Host "✅ Found: $_"
+            } else {
+                Write-Error "❌ Missing: $_"
+                exit 1
+            }
+        }
+
         # Set environment variables for subsequent steps
-        echo "INCLUDE=$env:INCLUDE;$include_paths" >> $env:GITHUB_ENV
+        echo "INCLUDE=$include_paths;$env:INCLUDE" >> $env:GITHUB_ENV
+        echo "LIB=$lib_paths;$env:LIB" >> $env:GITHUB_ENV
+        echo "PATH=$cuda_root\bin;$env:PATH" >> $env:GITHUB_ENV
         echo "CUDA_PATH=$cuda_root" >> $env:GITHUB_ENV
         echo "CUDA_HOME=$cuda_root" >> $env:GITHUB_ENV
         echo "CUDA_TOOLKIT_ROOT_DIR=$cuda_root" >> $env:GITHUB_ENV
-        
+
         # Verify CUDA setup
         Write-Host "CUDA Environment Setup:"
-        Write-Host "CUDA_PATH: $env:CUDA_PATH"
+        Write-Host "CUDA_PATH: $cuda_root"
         Write-Host "INCLUDE paths: $include_paths"
-        Get-ChildItem $cuda_include | Select-Object Name
+        Write-Host "LIB paths: $lib_paths"
+        
+        # List CUDA include directory contents
+        Write-Host "CUDA include directory contents:"
+        Get-ChildItem "$cuda_root\include" | Select-Object Name
+        
+        # Verify CUDA libraries
+        Write-Host "Verifying CUDA libraries..."
+        $required_libs = @("cusparse", "cudart", "cublas", "cufft", "curand")
+        $required_libs | ForEach-Object {
+            $lib = "$cuda_root\lib\x64\$_.lib"
+            if (Test-Path $lib) {
+                Write-Host "✅ Found: $lib"
+            } else {
+                Write-Error "❌ Missing: $lib"
+                exit 1
+            }
+        }
+
+        # Verify NVCC
+        Write-Host "NVCC version:"
         nvcc --version
 
     # Set build environment (Windows)
@@ -387,12 +379,24 @@ jobs:
         # Print environment for debugging
         Write-Host "Build Environment:"
         Write-Host "INCLUDE: $env:INCLUDE"
+        Write-Host "LIB: $env:LIB"
+        Write-Host "PATH: $env:PATH"
         Write-Host "CUDA_PATH: $env:CUDA_PATH"
         Write-Host "CUDA_HOME: $env:CUDA_HOME"
+        
+        # Verify CUDA libraries are accessible
+        if (Test-Path "$env:CUDA_PATH\lib\x64\cusparse.lib") {
+            Write-Host "✅ CUDA libraries found"
+        } else {
+            Write-Error "❌ CUDA libraries not found"
+            exit 1
+        }
         
         python setup.py bdist_wheel
       env:
         INCLUDE: ${{ env.INCLUDE }}
+        LIB: ${{ env.LIB }}
+        PATH: ${{ env.PATH }}
         CUDA_PATH: ${{ env.CUDA_PATH }}
         CUDA_HOME: ${{ env.CUDA_HOME }}
         CUDA_TOOLKIT_ROOT_DIR: ${{ env.CUDA_TOOLKIT_ROOT_DIR }}

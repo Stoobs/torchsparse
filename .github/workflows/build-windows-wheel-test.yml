@@ -100,7 +100,14 @@ jobs:
 
     - name: Configure sparsehash for MSVC
       if: runner.os == 'Windows'
-      run: |
+      run: |        # Download and extract sparsehash first
+        Invoke-WebRequest -Uri "https://github.com/sparsehash/sparsehash/archive/refs/tags/sparsehash-2.0.4.zip" -OutFile "sparsehash.zip"
+        Expand-Archive -Path "sparsehash.zip" -DestinationPath "C:\"
+        Move-Item -Path "C:\sparsehash-sparsehash-2.0.4" -Destination "C:\sparsehash"
+        
+        # Create directory structure
+        New-Item -Path "C:\sparsehash\src\sparsehash\internal" -ItemType Directory -Force
+        
         # Create MSVC-compatible sparseconfig.h
         $configContent = @"
         #ifndef SPARSEHASH_SPARSECONFIG_H_
@@ -140,13 +147,25 @@ jobs:
         #define HAVE_SYS_TYPES_H  0
 
         #endif  // SPARSEHASH_SPARSECONFIG_H_
-        "@
-
-        $sparsehashDir = "C:\sparsehash\src\sparsehash"
-        if (-not (Test-Path $sparsehashDir)) {
-          New-Item -Path $sparsehashDir -ItemType Directory -Force
+        "@        # Write the sparseconfig.h file to both locations
+        $configContent | Out-File -FilePath "C:\sparsehash\src\sparsehash\internal\sparseconfig.h" -Encoding ASCII -Force
+        $configContent | Out-File -FilePath "C:\sparsehash\src\sparsehash\sparseconfig.h" -Encoding ASCII -Force
+        
+        # Verify the files were created
+        Write-Host "Verifying sparseconfig.h files..."
+        @(
+            "C:\sparsehash\src\sparsehash\internal\sparseconfig.h",
+            "C:\sparsehash\src\sparsehash\sparseconfig.h"
+        ) | ForEach-Object {
+            if (Test-Path $_) {
+                Write-Host "✅ Created: $_"
+                Write-Host "File contents:"
+                Get-Content $_
+            } else {
+                Write-Error "❌ Failed to create: $_"
+                exit 1
+            }
         }
-        $configContent | Out-File -FilePath "$sparsehashDir\internal\sparseconfig.h" -Encoding ASCII
 
         # Download and extract sparsehash
         Invoke-WebRequest -Uri "https://github.com/sparsehash/sparsehash/archive/refs/tags/sparsehash-2.0.4.zip" -OutFile "sparsehash.zip"

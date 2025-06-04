@@ -164,7 +164,7 @@ jobs:
         }
 
         # set the path for CUDA include directory
-        echo "INCLUDE=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$cuda_version\include;%INCLUDE%" >> $env:GITHUB_ENV
+        echo "INCLUDE=$env:INCLUDE;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$cuda_version\include" >> $env:GITHUB_ENV
 
         # Set the index URL for PyTorch wheels
         $index_url = "https://download.pytorch.org/whl/$cuda_short"

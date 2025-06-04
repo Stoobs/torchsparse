@@ -261,6 +261,13 @@ jobs:
           fi
         fi
 
+    - name: Finding the includes... (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $cuda_version = "${{ matrix.cuda-version }}"
+        Get-ChildItem -Path "C:\Program Files\NVIDIA GPU Computing Toolkit\" -Filter "cusparse.h" -Recurse
+        
     - name: Set build environment (Windows)
       if: runner.os == 'Windows'
       shell: pwsh
@@ -272,7 +279,6 @@ jobs:
         echo "FORCE_CUDA=1" >> $env:GITHUB_ENV
         echo "TORCH_CUDA_ARCH_LIST=7.5;8.0;8.6;8.9" >> $env:GITHUB_ENV
         echo "MAX_JOBS=4" >> $env:GITHUB_ENV
-        Get-ChildItem -Path "C:\" -Filter "cusparse.h" -Recurse
 
     - name: Set build environment (Linux)
       if: runner.os == 'Linux'

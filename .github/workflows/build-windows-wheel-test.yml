@@ -17,7 +17,7 @@ on:
       pytorch_version:
         description: 'PyTorch version to install (e.g., "2.1.0", "2.4.0", or "latest" for newest)'
         required: false
-        default: 'latest'
+        default: '2.6.0'
       platforms:
         description: 'Platforms to build for (comma-separated: windows,linux)'
         required: false
@@ -25,7 +25,7 @@ on:
       build_latest_only:
         description: 'Build only latest PyTorch version for each CUDA version'
         required: false
-        default: 'true'
+        default: 'false'
 
 jobs:
   generate-matrix:
@@ -164,7 +164,7 @@ jobs:
         }
         
         # Set environment variables for CUDA include path
-        echo "INCLUDE=$env:INCLUDE;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$cuda_version\include" >> $env:GITHUB_ENV
+        echo "INCLUDE=$env:INCLUDE;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$cuda_version\include\" >> $env:GITHUB_ENV
         
         # Set the index URL for PyTorch wheels
         $index_url = "https://download.pytorch.org/whl/$cuda_short"
@@ -267,6 +267,8 @@ jobs:
         echo "MSSdk=1" >> $env:GITHUB_ENV
         echo "FORCE_CUDA=1" >> $env:GITHUB_ENV
         echo "TORCH_CUDA_ARCH_LIST=7.5;8.0;8.6;8.9" >> $env:GITHUB_ENV
+        echo "MAX_JOBS=4" >> $env:GITHUB_ENV
+        Get-ChildItem -Path "C:\" -Filter "cusparse.h" -Recurse
 
     - name: Set build environment (Linux)
       if: runner.os == 'Linux'

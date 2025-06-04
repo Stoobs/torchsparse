@@ -181,6 +181,7 @@ jobs:
             "2.1.0" { "0.16.0" }
             "2.4.0" { "0.19.0" }
             "2.5.0" { "0.20.0" }
+            "2.6.0" { "0.21.0" }
             default {
               Write-Host "Warning: Unknown torchvision version for PyTorch $pytorch_version, installing without version constraint"
               $null
@@ -243,6 +244,9 @@ jobs:
               ;;
             "2.5.0")
               torchvision_version="0.20.0"
+              ;;
+            "2.6.0")
+              torchvision_version="0.21.0"
               ;;
             *)
               echo "Warning: Unknown torchvision version for PyTorch $pytorch_version, installing without version constraint"

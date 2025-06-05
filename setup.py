@@ -61,6 +61,7 @@ define_macros = []
 include_dirs = [
     os.path.abspath("torchsparse/backend"),
     os.path.abspath("third_party/sparsehash/src"), # Keep for dense_hash_map etc.
+    os.path.abspath("third_party/sparsehash/src/sparsehash/internal")
 ]
 
 # Platform-specific compiler arguments

@@ -60,7 +60,8 @@ extension_type = CUDAExtension if device == "cuda" else CppExtension
 define_macros = []
 include_dirs = [
     os.path.abspath("torchsparse/backend"),
-    os.path.abspath("third_party/sparsehash/src"),
+    os.path.abspath("third_party/sparsehash/src"), # Keep for dense_hash_map etc.
+    os.path.abspath("third_party/sparsehash/src/sparsehash/internal"), # Add this
 ]
 
 # Platform-specific compiler arguments

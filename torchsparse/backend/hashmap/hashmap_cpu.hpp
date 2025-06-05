@@ -12,7 +12,7 @@
 #pragma warning(disable: 4267) // conversion warnings
 #include <sparsehash/internal/sparseconfig.h>
 #endif
-
+#include <sparseconfig.h>
 #include <sparsehash/dense_hash_map>
 
 class HashTableCPU {

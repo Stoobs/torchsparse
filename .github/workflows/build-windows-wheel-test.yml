@@ -262,22 +262,31 @@ jobs:
         # CXXFLAGS/CFLAGS from setup.py will be used for the extension
 
     - name: Build wheel
-      shell: pwsh # Using pwsh for consistency, bash for Linux specific commands if any
+      shell: pwsh # Using pwsh for consistency
       run: |
-        Write-Host "--- Build Environment Variables ---"
+        Write-Host "--- Build Environment Variables (Before Build) ---"
         Get-ChildItem Env: | Sort-Object Name | Format-Table Name, Value -AutoSize
-        Write-Host "-----------------------------------"
+        Write-Host "----------------------------------------------------"
+        Write-Host "Current PATH: $($env:PATH)" # Explicitly print PATH
         Write-Host "Python version for build: $(python --version)"
         Write-Host "PyTorch version for build: $(python -c "import torch; print(torch.__version__)")"
         Write-Host "CUDA_PATH: $env:CUDA_PATH"
         Write-Host "CUDA_HOME: $env:CUDA_HOME"
         
         if ($env:RUNNER_OS -eq 'Windows') {
+            # Try to find cl.exe manually
+            $cl_path = Get-Command cl.exe -ErrorAction SilentlyContinue
+            if ($cl_path) {
+                Write-Host "✅ cl.exe found at: $($cl_path.Source)"
+            } else {
+                Write-Warning "⚠️ cl.exe NOT found in PATH. This is likely the issue."
+            }
+
             if (Test-Path "$env:CUDA_PATH\lib\x64\cusparse.lib") {
                 Write-Host "✅ Windows: CUDA cusparse.lib found"
             } else {
-                Write-Error "❌ Windows: CUDA cusparse.lib not found at $env:CUDA_PATH\lib\x64\cusparse.lib. Full include path: $env:INCLUDE. Full lib path: $env:LIB"
-                exit 1
+                Write-Error "❌ Windows: CUDA cusparse.lib not found at $env:CUDA_PATH\lib\x64\cusparse.lib."
+                # exit 1 # Don't exit here yet, let the build attempt proceed to see its error
             }
         }
         

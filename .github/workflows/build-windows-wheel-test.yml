@@ -110,7 +110,7 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-        cache: 'pip'
+        cache: 'pip'  # We'll still use pip's cache location
         cache-dependency-path: |
           requirements.txt
           setup.py
@@ -133,28 +133,19 @@ jobs:
       env:
         INPUT_CUDA_VERSION: ${{ matrix.cuda-version }}.0
 
-    # - name: Install CUDA Toolkit ${{ matrix.cuda-version }}
-    #   if: runner.os == 'Windows' && steps.cache-cuda-toolkit.outputs.cache-hit != 'true'
-    #   uses: Jimver/cuda-toolkit@v0.2.23
-    #   with:
-    #     cuda: ${{ matrix.cuda-version }}.0
-    #     use-github-cache: false
-    #     method: 'network'
-    #     sub-packages: '["nvcc", "visual_studio_integration", "cudart", "cublas", "cublas_dev", "cusparse", "cusparse_dev", "cusolver", "cusolver_dev", "cupti", "cufft", "cufft_dev", "curand", "curand_dev", "nvrtc_dev", "nvrtc"]'
-
-    - name: Setup Visual Studio environment (Windows)
-      if: runner.os == 'Windows'
-      uses: ilammy/msvc-dev-cmd@v1
-      with:
-        arch: amd64
-
-    # REMOVED: "Install sparsehash (Windows)" step
-    # REMOVED: "Set sparsehash environment (Windows)" step
+    - name: Install and setup uv
+      shell: pwsh
+      run: |
+        # Install uv using pip (one-time pip usage)
+        python -m pip install --upgrade uv
+        
+        # Initialize uv
+        uv venv
 
     - name: Install Python dependencies (build tools)
+      shell: pwsh
       run: |
-        python -m pip install --upgrade pip
-        pip install wheel setuptools ninja # Ninja for faster C++ extension builds
+        uv pip install --system wheel setuptools ninja # Ninja for faster C++ extension builds
 
     - name: Install PyTorch (Windows)
       if: runner.os == 'Windows'
@@ -174,14 +165,14 @@ jobs:
 
         if ($pytorch_version_input -eq "latest") {
           Write-Host "Installing latest PyTorch for CUDA $cuda_version_input ($cuda_short_tag)"
-          pip install torch torchvision torchaudio --index-url $pytorch_index_url
+          uv pip install --system torch torchvision torchaudio --index-url $pytorch_index_url
         } else {
           Write-Host "Installing PyTorch $pytorch_version_input for CUDA $cuda_version_input ($cuda_short_tag)"
           $torch_package_version = "$pytorch_version_input+$cuda_short_tag"
           if ($pytorch_version_input -eq "2.6.0") {
-            pip install "torch==$torch_package_version" "torchvision==0.21.0+$cuda_short_tag" "torchaudio==2.6.0+$cuda_short_tag" --index-url $pytorch_index_url
+            uv pip install --system "torch==$torch_package_version" "torchvision==0.21.0+$cuda_short_tag" "torchaudio==2.6.0+$cuda_short_tag" --index-url $pytorch_index_url
           } else {
-            pip install "torch==$torch_package_version" torchvision torchaudio --index-url $pytorch_index_url
+            uv pip install --system "torch==$torch_package_version" torchvision torchaudio --index-url $pytorch_index_url
           }
         }
         python -c "import torch; print(f'PyTorch version: {torch.__version__}'); print(f'Torch CUDA version: {torch.version.cuda}')"
@@ -204,14 +195,14 @@ jobs:
 
         if [ "$pytorch_version_input" = "latest" ]; then
           echo "Installing latest PyTorch for CUDA $cuda_version_input ($cuda_short_tag)"
-          pip install torch torchvision torchaudio --index-url "$pytorch_index_url"
+          uv pip install --system torch torchvision torchaudio --index-url "$pytorch_index_url"
         else
           echo "Installing PyTorch $pytorch_version_input for CUDA $cuda_version_input ($cuda_short_tag)"
           torch_package_version="$pytorch_version_input+$cuda_short_tag"
           if [ "$pytorch_version_input" = "2.6.0" ]; then
-            pip install "torch==$torch_package_version" "torchvision==0.21.0+$cuda_short_tag" "torchaudio==2.6.0+$cuda_short_tag" --index-url "$pytorch_index_url"
+            uv pip install --system "torch==$torch_package_version" "torchvision==0.21.0+$cuda_short_tag" "torchaudio==2.6.0+$cuda_short_tag" --index-url "$pytorch_index_url"
           else
-            pip install "torch==$torch_package_version" torchvision torchaudio --index-url "$pytorch_index_url"
+            uv pip install --system "torch==$torch_package_version" torchvision torchaudio --index-url "$pytorch_index_url"
           fi
         fi
         python -c "import torch; print(f'PyTorch version: {torch.__version__}'); print(f'Torch CUDA version: {torch.version.cuda}')"
@@ -299,7 +290,7 @@ jobs:
         $wheel = Get-ChildItem -Path "dist" -Filter "*.whl" | Select-Object -First 1
         if (-not $wheel) { Write-Error "No wheel found in dist directory."; exit 1 }
         Write-Host "Installing wheel: $($wheel.FullName)"
-        pip install $wheel.FullName
+        uv pip install --system $wheel.FullName
         python -c "import torchsparse; print(f'TorchSparse version: {torchsparse.__version__}')"
         python -c "import torch; import torchsparse; print('Basic import test passed for torchsparse on Windows')"
 
@@ -309,7 +300,7 @@ jobs:
         wheel_path=$(find dist -name "*.whl" | head -n 1)
         if [ -z "$wheel_path" ]; then echo "No wheel found in dist directory."; exit 1; fi
         echo "Installing wheel: $wheel_path"
-        pip install "$wheel_path"
+        uv pip install --system "$wheel_path"
         python -c "import torchsparse; print(f'TorchSparse version: {torchsparse.__version__}')"
         python -c "import torch; import torchsparse; print('Basic import test passed for torchsparse on Linux')"
 
@@ -389,6 +380,12 @@ jobs:
         name: wheels-${{ runner.os }}-py${{ matrix.python-version }}-cuda${{ matrix.cuda-version }}
         path: downloaded_wheel
 
+    - name: Install and setup uv (Test)
+      shell: bash
+      run: |
+        python -m pip install --upgrade uv
+        uv venv
+
     - name: Install PyTorch for testing
       shell: bash
       run: |
@@ -399,12 +396,12 @@ jobs:
 
         if [ "${{ matrix.cuda-version }}" = "12.6" ]; then
           PYTORCH_CUDA_TAG="cu126"
-          TARGET_PYTORCH_VERSION="2.6.0" # Align with build
+          TARGET_PYTORCH_VERSION="2.6.0"
           TARGET_TORCHVISION_VERSION="0.21.0"
           TARGET_TORCHAUDIO_VERSION="2.6.0"
         elif [ "${{ matrix.cuda-version }}" = "12.1" ]; then
           PYTORCH_CUDA_TAG="cu121"
-          TARGET_PYTORCH_VERSION="2.1.0" # Example
+          TARGET_PYTORCH_VERSION="2.1.0"
           TARGET_TORCHVISION_VERSION="0.16.0"
           TARGET_TORCHAUDIO_VERSION="2.1.0"
         else
@@ -413,10 +410,11 @@ jobs:
         fi
         
         echo "Installing PyTorch $TARGET_PYTORCH_VERSION+$PYTORCH_CUDA_TAG, torchvision $TARGET_TORCHVISION_VERSION+$PYTORCH_CUDA_TAG, torchaudio $TARGET_TORCHAUDIO_VERSION+$PYTORCH_CUDA_TAG"
-        pip install "torch==$TARGET_PYTORCH_VERSION+$PYTORCH_CUDA_TAG" \
-                    "torchvision==$TARGET_TORCHVISION_VERSION+$PYTORCH_CUDA_TAG" \
-                    "torchaudio==$TARGET_TORCHAUDIO_VERSION+$PYTORCH_CUDA_TAG" \
-                    --index-url https://download.pytorch.org/whl/$PYTORCH_CUDA_TAG
+        uv pip install --system \
+          "torch==$TARGET_PYTORCH_VERSION+$PYTORCH_CUDA_TAG" \
+          "torchvision==$TARGET_TORCHVISION_VERSION+$PYTORCH_CUDA_TAG" \
+          "torchaudio==$TARGET_TORCHAUDIO_VERSION+$PYTORCH_CUDA_TAG" \
+          --index-url "https://download.pytorch.org/whl/$PYTORCH_CUDA_TAG"
 
     - name: Test wheel installation and functionality
       shell: bash

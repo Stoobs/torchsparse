@@ -136,6 +136,16 @@ $msBuildExtensions = (Get-ChildItem  "$src\visual_studio_integration\CUDAVisualS
     }
 }
 
+# Add CUDA binary directory to PATH (both system and current session)
+$cuda_bin = Join-Path $dst "bin"
+$env:Path = "$cuda_bin;" + $env:Path
+
+# Update system PATH if not already present
+$system_path = [Environment]::GetEnvironmentVariable("Path", [System.EnvironmentVariableTarget]::Machine)
+if ($system_path -notlike "*$cuda_bin*") {
+    [Environment]::SetEnvironmentVariable("Path", "$cuda_bin;$system_path", [System.EnvironmentVariableTarget]::Machine)
+}
+
 # Add to Github env
 Write-Output "Setting environment variables for GitHub Actions..."
 
@@ -150,6 +160,33 @@ Write-Output "CUDA_PATH_VX_Y=CUDA_PATH_V$($CUDA_MAJOR)_$($CUDA_MINOR)" >> $env:G
 Write-Output "CudaToolkitDir=$dst" >> $env:GITHUB_ENV
 Write-Output "CMAKE_CUDA_COMPILER=$dst\bin\nvcc.exe" >> $env:GITHUB_ENV
 Write-Output "NVCC_APPEND_FLAGS=-allow-unsupported-compiler" >> $env:GITHUB_ENV
+
+# Add PATH to GitHub env
+Write-Output "PATH=$env:Path" >> $env:GITHUB_ENV
+
+# Verify CUDA installation
+Write-Output "Verifying CUDA installation..."
+
+# Check if nvcc is accessible
+$nvcc_path = Join-Path $dst "bin\nvcc.exe"
+if (Test-Path $nvcc_path) {
+    Write-Output "✅ Found nvcc at: $nvcc_path"
+    
+    # Test nvcc
+    try {
+        $nvcc_version = & $nvcc_path --version
+        Write-Output "✅ NVCC is working:"
+        Write-Output $nvcc_version
+    } catch {
+        Write-Error "❌ NVCC found but failed to execute. Error: $_"
+        exit 1
+    }
+} else {
+    Write-Error "❌ NVCC not found at: $nvcc_path"
+    Write-Output "Contents of CUDA bin directory:"
+    Get-ChildItem (Join-Path $dst "bin") | ForEach-Object { Write-Output "  $_" }
+    exit 1
+}
 
 Write-Output "CUDA_VERSION=$CUDA_VERSION_FULL" >> $env:GITHUB_ENV
 Write-Output "Setup completed."

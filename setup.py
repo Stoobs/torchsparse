@@ -16,11 +16,33 @@ version_file = open("./torchsparse/version.py")
 version = version_file.read().split("'")[1]
 print("torchsparse version:", version)
 
+# Check CUDA environment
+if os.name == 'nt':  # Windows
+    cuda_path = os.getenv('CUDA_PATH')
+    if cuda_path and os.path.exists(os.path.join(cuda_path, 'bin', 'nvcc.exe')):
+        os.environ['CUDA_HOME'] = cuda_path
+
 if (torch.cuda.is_available() and CUDA_HOME is not None) or (
     os.getenv("FORCE_CUDA", "0") == "1"
 ):
     device = "cuda"
     pybind_fn = f"pybind_{device}.cu"
+    
+    # Verify nvcc is accessible
+    import subprocess
+    try:
+        nvcc_version = subprocess.check_output(['nvcc', '--version'], 
+                                             stderr=subprocess.STDOUT,
+                                             universal_newlines=True)
+        print("NVCC version found:", nvcc_version.split('\n')[0])
+    except (subprocess.SubprocessError, FileNotFoundError) as e:
+        print("Warning: NVCC not found in PATH. Please ensure CUDA is properly installed.")
+        print(f"CUDA_HOME: {CUDA_HOME}")
+        print(f"PATH: {os.environ.get('PATH', '')}")
+        if not os.getenv("FORCE_CUDA", "0") == "1":
+            print("Falling back to CPU build...")
+            device = "cpu"
+            pybind_fn = f"pybind_{device}.cpp"
 else:
     device = "cpu"
     pybind_fn = f"pybind_{device}.cpp"
@@ -57,7 +79,7 @@ if platform.system() == "Windows":
             "--use-local-env",
             "-std=c++17",
             "-Xcompiler", "/MD",
-            "-Xcudafe", "--disable-warnings"  # <--- CORRECTED LINE
+            "-w"  # Disable Warnings
         ],
     }
 else: # Linux/macOS
@@ -66,7 +88,7 @@ else: # Linux/macOS
         "nvcc": [
             "-O3",
             "-std=c++17",
-            "-Xcudafe", "--disable-warnings"  # <--- CORRECTED LINE
+            "-w"  # Disable Warnings
         ],
     }
 
